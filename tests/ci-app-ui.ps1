@@ -21,18 +21,38 @@ function Find-ById($Root, [string]$Id, [int]$TimeoutSec = 30) {
         if ($el) { return $el }
         Start-Sleep -Milliseconds 500
     }
-    throw "UI element '$Id' not found"
+    Write-Diag "UI element '$Id' not found"
+    exit 1
 }
 
-$proc = Start-Process -FilePath $Exe -PassThru
+function Write-Diag([string]$What) {
+    $msg = "$What | session $((Get-Process -Id $PID).SessionId), interactive=$([Environment]::UserInteractive)"
+    if ($script:proc) {
+        $script:proc.Refresh()
+        $msg += ", app exited=$($script:proc.HasExited), window handle=$($script:proc.MainWindowHandle), title='$($script:proc.MainWindowTitle)'"
+    }
+    $top = @($AE::RootElement.FindAll($TS::Children, [System.Windows.Automation.Condition]::TrueCondition) |
+             ForEach-Object { "$($_.Current.Name) [pid $($_.Current.ProcessId)]" }) -join '; '
+    $msg += ", top-level windows: $top"
+    Write-Host $msg
+    if ($env:GITHUB_ACTIONS) { Write-Host "::error title=App UI::$msg" }
+}
+
+trap { Write-Diag "unexpected error: $($_.Exception.Message)"; exit 1 }
+
+$script:proc = Start-Process -FilePath $Exe -PassThru
 $win = $null
 $deadline = (Get-Date).AddSeconds(60)
-$byPid = New-Object System.Windows.Automation.PropertyCondition($AE::ProcessIdProperty, $proc.Id)
 while (-not $win -and (Get-Date) -lt $deadline) {
-    $win = $AE::RootElement.FindFirst($TS::Children, $byPid)
+    $script:proc.Refresh()
+    if ($script:proc.HasExited) { break }
+    $h = $script:proc.MainWindowHandle
+    if ($h -ne [IntPtr]::Zero) {
+        try { $win = $AE::FromHandle($h) } catch { $win = $null }
+    }
     if (-not $win) { Start-Sleep -Seconds 1 }
 }
-if (-not $win) { throw 'main window did not appear' }
+if (-not $win) { Write-Diag 'main window not reachable'; exit 1 }
 Write-Host "window: $($win.Current.Name)"
 
 $failures = 0
