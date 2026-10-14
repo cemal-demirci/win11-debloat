@@ -22,7 +22,9 @@ function Find-ById($Root, [string]$Id, [int]$TimeoutSec = 30) {
         Start-Sleep -Milliseconds 500
     }
     $all = @($Root.FindAll($TS::Descendants, [System.Windows.Automation.Condition]::TrueCondition) | ForEach-Object {
-        "$($_.Current.ControlType.ProgrammaticName -replace 'ControlType\.', '')('$($_.Current.Name)', id='$($_.Current.AutomationId)')"
+        $n = ($_.Current.Name -replace '\s+', ' ')
+        if ($n.Length -gt 40) { $n = $n.Substring(0, 40) + '...' }
+        "$($_.Current.ControlType.ProgrammaticName -replace 'ControlType\.', '')('$n', id='$($_.Current.AutomationId)', class='$($_.Current.ClassName)')"
     }) -join '; '
     Write-Diag "UI element '$Id' not found. Window contains: $all"
     exit 1
@@ -38,7 +40,10 @@ function Write-Diag([string]$What) {
              ForEach-Object { "$($_.Current.Name) [pid $($_.Current.ProcessId)]" }) -join '; '
     $msg += ", top-level windows: $top"
     Write-Host $msg
-    if ($env:GITHUB_ACTIONS) { Write-Host "::error title=App UI::$msg" }
+    if ($env:GITHUB_ACTIONS) {
+        # workflow commands are single-line: escape % CR LF
+        Write-Host ("::error title=App UI::" + ($msg -replace '%', '%25' -replace "`r", '%0D' -replace "`n", '%0A'))
+    }
 }
 
 trap { Write-Diag "unexpected error: $($_.Exception.Message)"; exit 1 }
