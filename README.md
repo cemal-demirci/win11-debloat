@@ -1,6 +1,6 @@
 # Windows 11 Debloat · Cemal.cloud
 
-Windows 11'deki reklamları, Copilot'u ve telemetriyi tek komutla kapatan PowerShell scripti. Yaptığı her değişikliği kaydeder, beğenmezseniz tek komutla geri alırsınız.
+Windows 11'deki reklamları, Copilot'u ve telemetriyi tek tıkla kapatan küçük bir uygulama. Yaptığı her değişikliği kaydeder, beğenmezseniz tek tıkla geri alırsınız.
 
 [![ci](https://github.com/cemal-demirci/win11-debloat/actions/workflows/ci.yml/badge.svg)](https://github.com/cemal-demirci/win11-debloat/actions/workflows/ci.yml)
 ![license](https://img.shields.io/badge/license-MIT-blue)
@@ -9,24 +9,34 @@ Windows 11'deki reklamları, Copilot'u ve telemetriyi tek komutla kapatan PowerS
 
 Sıfır kurulmuş bir Windows 11 bile Copilot, Recall, Başlat menüsünde reklamlar, kendiliğinden kurulan uygulamalar, Xbox servisleri ve Microsoft'a giden telemetri ile gelir. Bunların bir kısmı Ayarlar'da hiç yoktur, bir kısmı da büyük güncellemelerden sonra geri açılır.
 
-Bu script hepsini tek seferde kapatır. Diğer debloat araçlarından farkı, neyi değiştirdiğini kaydetmesidir. Pişman olursanız her şey geri alınabilir.
+Bu uygulama hepsini tek seferde kapatır. Diğer debloat araçlarından farkı, neyi değiştirdiğini kaydetmesidir. Pişman olursanız her şey geri alınabilir.
 
 ## Hızlı başlangıç
 
-PowerShell'i **yönetici olarak** açın:
+[**Releases**](https://github.com/cemal-demirci/win11-debloat/releases/latest) sayfasından `Win11-Debloat.exe` dosyasını indirip çalıştırın. Kurulum gerekmez, yönetici izni ister.
+
+1. Seçenekleri işaretleyin. Hepsi varsayılan olarak açıktır, kullandığınız şeylerin (Edge, Xbox, Spotify...) işaretini kaldırın.
+2. **Önizle** ile nelerin değişeceğine bakın. Bu adımda hiçbir şey değişmez.
+3. **Uygula**'ya basın, bitince bilgisayarı yeniden başlatın.
+4. Beğenmezseniz **Geri al**.
+
+> Uygulama imzasız olduğu için Windows "Bilgisayarınız korundu" uyarısı gösterebilir: **Ek bilgi → Yine de çalıştır**. İndirdiğiniz dosyayı Releases sayfasındaki `SHA256SUMS.txt` ile doğrulayabilirsiniz.
+
+Uygulama, bu repodaki PowerShell scriptlerini içinde taşır ve onları çalıştırır. Kendi başına başka bir işlem yapmaz, ne çalıştırdığını alttaki kayıt penceresinde görürsünüz.
+
+### PowerShell ile
+
+Uygulama yerine scriptleri doğrudan kullanmak isterseniz, PowerShell'i **yönetici olarak** açın:
 
 ```powershell
 irm https://raw.githubusercontent.com/cemal-demirci/win11-debloat/main/Win11-Debloat.ps1 -OutFile Win11-Debloat.ps1
 irm https://raw.githubusercontent.com/cemal-demirci/win11-debloat/main/Win11-Restore.ps1 -OutFile Win11-Restore.ps1
 
-# 1. Ne yapacağını görün (hiçbir şey değişmez)
-powershell -ExecutionPolicy Bypass -File .\Win11-Debloat.ps1 -DryRun
-
-# 2. Uygulayın, ardından bilgisayarı yeniden başlatın
-powershell -ExecutionPolicy Bypass -File .\Win11-Debloat.ps1
+powershell -ExecutionPolicy Bypass -File .\Win11-Debloat.ps1 -DryRun   # ne yapacağını gör
+powershell -ExecutionPolicy Bypass -File .\Win11-Debloat.ps1           # uygula
 ```
 
-Ayarlar, script'i çalıştıran kullanıcıya uygulanır. Temizlemek istediğiniz hesapla (yönetici olmalı) çalıştırın.
+Ayarlar, çalıştıran kullanıcıya uygulanır. Temizlemek istediğiniz hesapla (yönetici olmalı) çalıştırın.
 
 ## Ne değişir?
 
@@ -56,6 +66,8 @@ Riskli durumlarda ilgili adımı atlar:
 
 ## Geri alma
 
+Uygulamada **Geri al** butonuna basın ya da PowerShell ile:
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\Win11-Restore.ps1
 ```
@@ -65,6 +77,8 @@ Registry değerleri eski haline döner, kapatılan görevler açılır, OneDrive
 Tamamen geri dönmek için "Cemal.cloud Win11-Debloat" restore noktası da kullanılabilir. Yedekler `%ProgramData%\CemalCloud\Win11Debloat\` altında durur.
 
 ## Seçenekler
+
+Uygulamadaki kutucuklar aşağıdaki parametrelere karşılık gelir. PowerShell ile kullanırken doğrudan yazabilirsiniz.
 
 | Parametre | Ne yapar |
 |---|---|
@@ -89,6 +103,8 @@ Tamamen geri dönmek için "Cemal.cloud Win11-Debloat" restore noktası da kulla
 
 Her değişiklikte GitHub Actions, script'i Windows Server 2025 üzerinde (Windows 11 24H2 ile aynı çekirdek) gerçekten çalıştırır ve şunları kontrol eder: `-DryRun` hiçbir şeyi değiştirmiyor, gerçek çalıştırma ayarları uyguluyor, ikinci çalıştırma sorun çıkarmıyor, restore her değeri eski haline döndürüyor.
 
+Uygulama da her değişiklikte derlenir. İçindeki scriptlerin bu repodakilerle birebir aynı olduğu doğrulanır, önizleme, uygulama ve geri alma uygulama üzerinden çalıştırılır. Pencere de arayüz otomasyonuyla açılıp bir kutucuk kaldırılır ve **Önizle**'ye basılarak denenir.
+
 Sunucu sürümünde olmayan masaüstü parçaları (Store uygulamaları, Edge kaldırma, OneDrive) bu testin dışında kalır. İlk kullanımda bir sanal makinede `-DryRun` ile denemenizi öneririz.
 
 ## Lisans
@@ -100,7 +116,7 @@ Sunucu sürümünde olmayan masaüstü parçaları (Store uygulamaları, Edge ka
 <details>
 <summary><b>English</b></summary>
 
-Reversible Windows 11 debloat: Copilot, Recall, Xbox, Widgets, OneDrive, Edge (where Microsoft allows it), ads, suggestions and telemetry. Before changing anything it creates a restore point, exports the affected registry hives and records every change in `undo.json`; `Win11-Restore.ps1` rolls all pending runs back, newest first. Store, winget, Terminal, WebView2, work Teams, classic Outlook, Windows Search, Get Help and the Intune sync service are kept on purpose.
+Reversible Windows 11 debloat as a small app (`Win11-Debloat.exe` on the Releases page: tick options, **Önizle** = preview, **Uygula** = apply, **Geri al** = restore) or as PowerShell scripts. It removes Copilot, Recall, Xbox, Widgets, OneDrive, Edge (where Microsoft allows it), ads, suggestions and telemetry. Before changing anything it creates a restore point, exports the affected registry hives and records every change in `undo.json`; `Win11-Restore.ps1` rolls all pending runs back, newest first. Store, winget, Terminal, WebView2, work Teams, classic Outlook, Windows Search, Get Help and the Intune sync service are kept on purpose.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\Win11-Debloat.ps1 -DryRun

@@ -28,17 +28,29 @@ jobs:
           if ($r) { exit 1 }
 
   roundtrip:
-    name: Debloat + restore round trip (Windows Server 2025 / 24H2 base)
+    name: Scripts - debloat + restore round trip (Windows Server 2025)
     needs: lint
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@v6
       - shell: cmd
         run: powershell -NoProfile -ExecutionPolicy Bypass -File tests\ci-roundtrip.ps1
-      - name: Upload logs
-        if: always()
-        uses: actions/upload-artifact@v6
+
+  app:
+    name: App - build, headless runs, UI test (Windows Server 2025)
+    needs: lint
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build Win11-Debloat.exe
+        run: dotnet build app/Win11Debloat.csproj -c Release
+      - name: Embedded scripts, 64-bit PowerShell, preview / apply / restore through the app
+        shell: cmd
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests\ci-app.ps1 -Exe app\bin\Release\net48\Win11-Debloat.exe
+      - name: Window test (UI Automation)
+        shell: cmd
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests\ci-app-ui.ps1 -Exe app\bin\Release\net48\Win11-Debloat.exe
+      - uses: actions/upload-artifact@v6
         with:
-          name: debloat-logs
-          path: C:\ProgramData\CemalCloud\Win11Debloat\
-          if-no-files-found: ignore
+          name: Win11-Debloat
+          path: app/bin/Release/net48/Win11-Debloat.exe
