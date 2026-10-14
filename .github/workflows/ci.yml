@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: Parse + PSScriptAnalyzer (PowerShell 5.1)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($f in Get-ChildItem -Recurse -Filter *.ps1) {
+            $errs = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$errs)
+            if ($errs) { $errs | Format-List; throw "parse errors in $($f.Name)" }
+          }
+          if (-not (Get-Module -ListAvailable PSScriptAnalyzer)) {
+            Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+          }
+          $r = Invoke-ScriptAnalyzer -Path . -Recurse -Severity Error, Warning -ExcludeRule `
+                 PSAvoidUsingWriteHost, PSUseShouldProcessForStateChangingFunctions, PSUseSingularNouns, PSAvoidUsingEmptyCatchBlock
+          $r | Format-Table -AutoSize
+          if ($r) { exit 1 }
+
+  roundtrip:
+    name: Debloat + restore round trip (Windows Server 2025 / 24H2 base)
+    needs: lint
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - shell: cmd
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests\ci-roundtrip.ps1
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debloat-logs
+          path: C:\ProgramData\CemalCloud\Win11Debloat\
+          if-no-files-found: ignore
