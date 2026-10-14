@@ -21,7 +21,10 @@ function Find-ById($Root, [string]$Id, [int]$TimeoutSec = 30) {
         if ($el) { return $el }
         Start-Sleep -Milliseconds 500
     }
-    Write-Diag "UI element '$Id' not found"
+    $all = @($Root.FindAll($TS::Descendants, [System.Windows.Automation.Condition]::TrueCondition) | ForEach-Object {
+        "$($_.Current.ControlType.ProgrammaticName -replace 'ControlType\.', '')('$($_.Current.Name)', id='$($_.Current.AutomationId)')"
+    }) -join '; '
+    Write-Diag "UI element '$Id' not found. Window contains: $all"
     exit 1
 }
 
