@@ -1,9 +1,16 @@
 name: release
 
-# Push a tag like v1.0.0 to build the app and publish a GitHub release.
+# Publish a release: either push a tag like v1.0.0, or run this workflow from
+# the Actions tab ("Run workflow") and type the version; the tag is then
+# created by the workflow itself.
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version without the v, e.g. 1.0.0'
+        required: true
 
 permissions:
   contents: write
@@ -11,11 +18,13 @@ permissions:
 jobs:
   release:
     runs-on: windows-2025
+    env:
+      TAG: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', inputs.version) || github.ref_name }}
     steps:
       - uses: actions/checkout@v6
       - name: Build
         shell: pwsh
-        run: dotnet build app/Win11Debloat.csproj -c Release "-p:Version=$('${{ github.ref_name }}'.TrimStart('v'))"
+        run: dotnet build app/Win11Debloat.csproj -c Release "-p:Version=$($env:TAG.TrimStart('v'))"
       - name: Smoke test (headless preview)
         shell: pwsh
         run: |
@@ -35,4 +44,7 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create '${{ github.ref_name }}' (Get-ChildItem dist).FullName --title "Windows 11 Debloat ${{ github.ref_name }}" --notes-file .github/release-notes.md
+        run: |
+          gh release create $env:TAG (Get-ChildItem dist).FullName --target $env:GITHUB_SHA `
+            --title "Windows 11 Debloat $env:TAG" --notes-file .github/release-notes.md
+          "::notice title=Release::Published $env:TAG with $((Get-ChildItem dist).Name -join ', ')"
