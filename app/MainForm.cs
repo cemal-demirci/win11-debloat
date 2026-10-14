@@ -225,6 +225,9 @@ namespace CemalCloud.Win11Debloat
                 AccessibleName = text,
                 Checked = true,
                 AutoSize = true,
+                // Native check box: real Windows look, and screen readers / UI Automation
+                // can read its state (WinForms-drawn boxes report nothing).
+                FlatStyle = FlatStyle.System,
                 Margin = new Padding(3, 4, 12, 4)
             };
             tips.SetToolTip(c, tip);
