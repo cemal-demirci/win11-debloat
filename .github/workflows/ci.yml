@@ -10,7 +10,7 @@ jobs:
     name: Parse + PSScriptAnalyzer (PowerShell 5.1)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -32,12 +32,12 @@ jobs:
     needs: lint
     runs-on: windows-2025
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - shell: cmd
         run: powershell -NoProfile -ExecutionPolicy Bypass -File tests\ci-roundtrip.ps1
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: debloat-logs
           path: C:\ProgramData\CemalCloud\Win11Debloat\

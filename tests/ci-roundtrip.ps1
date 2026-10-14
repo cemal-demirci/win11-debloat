@@ -51,9 +51,13 @@ Write-Host "Windows build $([Environment]::OSVersion.Version.Build), $($checks.C
 $before.GetEnumerator() | Sort-Object Name | ForEach-Object { Write-Host ("  before  {0} = [{1}]" -f $_.Name, $_.Value) }
 
 $failures = New-Object System.Collections.ArrayList
+$script:Passed = 0
 function Assert([bool]$Cond, [string]$Msg) {
-    if ($Cond) { Write-Host "  PASS  $Msg" -ForegroundColor Green }
-    else { Write-Host "  FAIL  $Msg" -ForegroundColor Red; [void]$failures.Add($Msg) }
+    if ($Cond) { Write-Host "  PASS  $Msg" -ForegroundColor Green; $script:Passed++ }
+    else {
+        Write-Host "  FAIL  $Msg" -ForegroundColor Red; [void]$failures.Add($Msg)
+        if ($env:GITHUB_ACTIONS) { Write-Host "::error title=Round trip::$Msg" }
+    }
 }
 
 # ---------------------------------------------------------------- 1. dry run
@@ -76,6 +80,15 @@ foreach ($c in $checks) {
 }
 $manifests = @(Get-ChildItem $base -Recurse -Filter 'undo.json')
 Assert ($manifests.Count -eq 1) "first run wrote one undo.json (found $($manifests.Count))"
+$firstRun = 'unknown'
+if ($manifests.Count -ge 1) {
+    $parsed  = Get-Content -LiteralPath $manifests[0].FullName -Raw | ConvertFrom-Json
+    $entries = @(@($parsed) | Where-Object { $null -ne $_ })
+    $count   = { param($k) @($entries | Where-Object { $_.Kind -eq $k }).Count }
+    $firstRun = "{0} registry values, {1} scheduled tasks, {2} apps, {3} features" -f `
+        (& $count 'Reg'), (& $count 'Task'), (& $count 'Appx'), (& $count 'Feature')
+    Write-Host "first run changed: $firstRun"
+}
 
 # ---------------------------------------------------------------- 3. repeat run
 Invoke-Script 'Win11-Debloat.ps1' @('-SkipRestorePoint', '-KeepEdge', '-Force')
@@ -99,8 +112,12 @@ Assert ($done.Count -ge 1) "restored manifests renamed (found $($done.Count))"
 # ---------------------------------------------------------------- result
 Write-Host ""
 if ($failures.Count -gt 0) {
-    Write-Host "$($failures.Count) check(s) failed" -ForegroundColor Red
+    Write-Host "$($failures.Count) check(s) failed, $($script:Passed) passed" -ForegroundColor Red
     exit 1
 }
 Write-Host 'All round-trip checks passed' -ForegroundColor Green
+if ($env:GITHUB_ACTIONS) {
+    Write-Host ("::notice title=Windows round trip::{0} checks passed on Windows build {1}. First run changed {2}. Dry run changed nothing, restore put every checked value back." -f `
+        $script:Passed, [Environment]::OSVersion.Version.Build, $firstRun)
+}
 exit 0
