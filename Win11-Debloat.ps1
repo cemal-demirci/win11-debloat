@@ -102,15 +102,8 @@ $script:Aborted = $false
 # Output helpers
 # ---------------------------------------------------------------------------
 function Write-Banner {
-    $c = 'Cyan'
     Write-Host ''
-    Write-Host '    ____                     _       _                 _ ' -ForegroundColor $c
-    Write-Host '   / ___|___ _ __ ___   __ _| |  ___| | ___  _   _  __| |' -ForegroundColor $c
-    Write-Host '  | |   / _ \ ''_ ` _ \ / _` | | / __| |/ _ \| | | |/ _` |' -ForegroundColor $c
-    Write-Host '  | |__|  __/ | | | | | (_| | || (__| | (_) | |_| | (_| |' -ForegroundColor $c
-    Write-Host '   \____\___|_| |_| |_|\__,_|_(_)___|_|\___/ \__,_|\__,_|' -ForegroundColor $c
-    Write-Host ''
-    Write-Host ("  Windows 11 Debloat v{0}  |  https://cemal.cloud" -f $ScriptVersion) -ForegroundColor White
+    Write-Host ("  Cemal.cloud | Windows 11 Debloat v{0}" -f $ScriptVersion) -ForegroundColor Cyan
     if ($DryRun) { Write-Host '  DRY RUN: nothing will be changed' -ForegroundColor Yellow }
     Write-Host ''
 }
