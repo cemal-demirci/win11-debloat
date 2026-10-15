@@ -37,6 +37,7 @@ namespace CemalCloud.Win11Debloat
                 return ScriptRunner.RunHeadless(args);
             }
 
+            Theme.AllowDarkControls();
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);

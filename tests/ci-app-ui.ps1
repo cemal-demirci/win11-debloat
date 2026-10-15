@@ -39,11 +39,12 @@ public static extern int DwmGetWindowAttribute(IntPtr hWnd, int attr, out RECT r
 public struct RECT { public int Left, Top, Right, Bottom; }
 '@
 Add-Type -AssemblyName System.Drawing
+$script:Shots = $ShotDir
 
 # Screenshot of a window as it is drawn (title bar included), for the README and design review.
 function Save-Shot([IntPtr]$Hwnd, [string]$Name) {
-    if (-not $ShotDir) { return }
-    New-Item -ItemType Directory -Path $ShotDir -Force | Out-Null
+    if (-not $script:Shots) { return }
+    New-Item -ItemType Directory -Path $script:Shots -Force | Out-Null
     Start-Sleep -Milliseconds 700
     $r = New-Object CemalCloud.Win32+RECT
     [void][CemalCloud.Win32]::GetWindowRect($Hwnd, [ref]$r)
@@ -57,7 +58,7 @@ function Save-Shot([IntPtr]$Hwnd, [string]$Name) {
         $crop = New-Object System.Drawing.Rectangle ($e.Left - $r.Left), ($e.Top - $r.Top), ($e.Right - $e.Left), ($e.Bottom - $e.Top)
         $c = $bmp.Clone($crop, $bmp.PixelFormat); $bmp.Dispose(); $bmp = $c
     }
-    $path = Join-Path $ShotDir "$Name.png"
+    $path = Join-Path $script:Shots "$Name.png"
     $bmp.Save($path, [System.Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()
     Write-Host "screenshot: $path"
 }

@@ -38,7 +38,7 @@ namespace CemalCloud.Win11Debloat
             Font = Theme.Ui(9.75f);
             ForeColor = Theme.Text;
             BackColor = Theme.Bg;
-            ClientSize = new Size(980, 668);
+            ClientSize = new Size(980, 650);
             MinimumSize = new Size(900, 600);
             StartPosition = FormStartPosition.CenterScreen;
             try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
@@ -83,6 +83,7 @@ namespace CemalCloud.Win11Debloat
             chkGuard.CheckedChanged += OnGuardToggled;
 
             var left = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Theme.Bg, Padding = new Padding(0, 0, 10, 0) };
+            Theme.DarkScrollBars(left);
             Stack(left, Section("Kaldırılacaklar"), remove, Gap(), Section("Ayarlar"), tune, Gap(), Section("Koruma"), guard);
 
             // ---- actions, status, log (right) --------------------------------------
@@ -142,6 +143,7 @@ namespace CemalCloud.Win11Debloat
                 BorderStyle = BorderStyle.None,
                 HideSelection = true
             };
+            Theme.DarkScrollBars(txtLog);
             var logFrame = new LogFrame { Dock = DockStyle.Fill };
             logFrame.Controls.Add(txtLog);
 
@@ -237,7 +239,7 @@ namespace CemalCloud.Win11Debloat
                 Text = text,
                 Dock = DockStyle.Top,
                 AutoSize = false,
-                Height = 28,
+                Height = 26,
                 TextAlign = ContentAlignment.TopLeft,
                 ForeColor = Theme.Muted,
                 Font = Theme.UiSemibold(9.5f),
@@ -247,7 +249,7 @@ namespace CemalCloud.Win11Debloat
 
         private static Control Gap()
         {
-            return new Panel { Dock = DockStyle.Top, Height = 12, BackColor = Theme.Bg };
+            return new Panel { Dock = DockStyle.Top, Height = 10, BackColor = Theme.Bg };
         }
 
         private static void Stack(Control parent, params Control[] items)
@@ -291,11 +293,11 @@ namespace CemalCloud.Win11Debloat
         {
             AppendLine("Hazır.");
             AppendLine("");
-            AppendLine("Her durumda kapanır : Copilot, Recall, reklamlar ve öneriler, Başlat aramasında Bing, telemetri.");
-            AppendLine("Dokunulmaz          : Store, winget, Terminal, Defender, Windows Update, iş Teams'i, klasik Outlook.");
-            AppendLine("Yedekler            : " + ScriptRunner.BackupDir);
+            AppendLine("Her durumda kapanır: Copilot, Recall, reklamlar, telemetri.");
+            AppendLine("Dokunulmaz: Store, winget, Defender, Windows Update.");
+            AppendLine("Yedekler: " + ScriptRunner.BackupDir);
             AppendLine("");
-            AppendLine("> Önce \"Önizle\": neyin değişeceğini gösterir, hiçbir şeyi değiştirmez.");
+            AppendLine("> Önce \"Önizle\": hiçbir şeyi değiştirmeden gösterir.");
         }
 
         private void UpdatePills()

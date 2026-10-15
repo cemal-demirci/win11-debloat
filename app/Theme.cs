@@ -148,6 +148,36 @@ namespace CemalCloud.Win11Debloat
             return c.R | (c.G << 8) | (c.B << 16);
         }
 
+        [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
+        private static extern int SetWindowTheme(IntPtr hwnd, string appName, string idList);
+
+        [DllImport("uxtheme.dll", EntryPoint = "#133")]
+        private static extern bool AllowDarkModeForWindow(IntPtr hwnd, bool allow);
+
+        [DllImport("uxtheme.dll", EntryPoint = "#135")]
+        private static extern int SetPreferredAppMode(int mode);
+
+        /// <summary>Lets this process use the dark variants of common controls (Windows 10 1903+).</summary>
+        public static void AllowDarkControls()
+        {
+            try { SetPreferredAppMode(1); } catch (EntryPointNotFoundException) { } catch (DllNotFoundException) { }
+        }
+
+        /// <summary>Dark scroll bars on a control that scrolls (log, option list).</summary>
+        public static void DarkScrollBars(System.Windows.Forms.Control c)
+        {
+            c.HandleCreated += (s, e) =>
+            {
+                try
+                {
+                    AllowDarkModeForWindow(c.Handle, true);
+                    SetWindowTheme(c.Handle, "DarkMode_Explorer", null);
+                }
+                catch (EntryPointNotFoundException) { }
+                catch (DllNotFoundException) { }
+            };
+        }
+
         [DllImport("user32.dll")]
         private static extern bool SystemParametersInfo(int action, int param, ref bool value, int winIni);
 

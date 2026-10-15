@@ -189,7 +189,7 @@ namespace CemalCloud.Win11Debloat
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
                      ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
             BackColor = Theme.Surface;
-            Height = 50;
+            Height = 46;
             Dock = DockStyle.Top;
             Cursor = Cursors.Hand;
             Switch = new ToggleSwitch
