@@ -155,6 +155,7 @@ namespace CemalCloud.Win11Debloat
                 OpenUrl(ScriptRunner.BackupDir);
             }));
             footer.Controls.Add(Link("GitHub", () => OpenUrl("https://github.com/cemal-demirci/win11-debloat")));
+            footer.Controls.Add(Link("Lisans", () => OpenUrl("https://github.com/cemal-demirci/win11-debloat#lisans")));
             footer.Controls.Add(new Label { Text = "Cemal.cloud v" + ScriptRunner.Version, AutoSize = true, ForeColor = Theme.Muted, Margin = new Padding(14, 0, 0, 0) });
 
             var right = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Bg, Padding = new Padding(14, 0, 0, 0) };

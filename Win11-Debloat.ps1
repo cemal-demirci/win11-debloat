@@ -108,7 +108,7 @@
 .NOTES
     Project : Cemal.cloud win11-debloat  (https://github.com/cemal-demirci/win11-debloat)
     Tested  : Windows 11 23H2 / 24H2 / 25H2, Windows PowerShell 5.1
-    License : GPL-3.0-or-later
+    License : PolyForm-Noncommercial-1.0.0
     HKCU changes apply to the account that runs the script. Run it from the
     user account you want to clean (that account must be an administrator).
 #>
@@ -135,7 +135,7 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 $ProgressPreference    = 'SilentlyContinue'
 
-$ScriptVersion = '1.4.1'
+$ScriptVersion = '1.4.2'
 $Stamp     = Get-Date -Format 'yyyyMMdd-HHmmss'
 $BaseDir   = Join-Path $env:ProgramData 'CemalCloud\Win11Debloat'
 $BackupDir = Join-Path $BaseDir $Stamp

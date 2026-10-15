@@ -1,7 +1,7 @@
 # Windows 11 Debloat · Cemal.cloud
 
 [![Sürüm](https://img.shields.io/github/v/release/cemal-demirci/win11-debloat?label=s%C3%BCr%C3%BCm&color=e3b341)](https://github.com/cemal-demirci/win11-debloat/releases)
-[![Lisans: GPL-3.0](https://img.shields.io/badge/lisans-GPL--3.0-blue)](LICENSE)
+[![Lisans: PolyForm Noncommercial](https://img.shields.io/badge/lisans-ticari%20olmayan%20kullan%C4%B1m%20%C3%BCcretsiz-orange)](LICENSE)
 [![Denetim](https://github.com/cemal-demirci/win11-debloat/actions/workflows/ci.yml/badge.svg)](https://github.com/cemal-demirci/win11-debloat/actions)
 ![Windows 11](https://img.shields.io/badge/Windows-11-0078D4)
 
@@ -197,7 +197,11 @@ kalıyor. CI makinesi yeniden başlatılamadığı için performans ayarlarını
 
 ## Lisans
 
-[GPL-3.0](LICENSE). Kullanabilir, değiştirebilir ve paylaşabilirsiniz. Değiştirilmiş halini dağıtan herkes, kaynak kodunu da aynı lisansla açık paylaşmak zorundadır. Kendi sorumluluğunuzda kullanın.
+[PolyForm Noncommercial 1.0.0](LICENSE). Kişisel kullanım, eğitim, araştırma, kâr amacı gütmeyen kuruluşlar ve kamu kurumları için **ücretsizdir**.
+
+**Ticari kullanım** için ticari lisans gerekir: bir şirketin kendi bilgisayarlarında kullanması, müşterilere hizmet olarak sunulması, bir ürüne eklenmesi ya da satılması. İletişim: [cemaldemirci0034@gmail.com](mailto:cemaldemirci0034@gmail.com)
+
+Kendi sorumluluğunuzda kullanın.
 
 Copyright (C) 2026 Cemal Demirci (Cemal.cloud)
 
@@ -233,4 +237,4 @@ repository and shows their output live.
   simulated feature update that the check finds and the guard task fixes by itself), the app headless and the app
   window (UI clicks, drift noticed on start) on Windows Server 2025. Desktop-only parts (Store apps, Edge removal, OneDrive) are not covered there;
   start with a preview in a VM.
-- **License:** GPL-3.0-or-later.
+- **License:** PolyForm Noncommercial 1.0.0. Free for personal, educational, nonprofit and government use; commercial use (including inside a company) needs a commercial license: cemaldemirci0034@gmail.com.
