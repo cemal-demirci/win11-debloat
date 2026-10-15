@@ -291,8 +291,6 @@ namespace CemalCloud.Win11Debloat
 
         private void Welcome()
         {
-            AppendLine("Hazır.");
-            AppendLine("");
             AppendLine("Her durumda kapanır: Copilot, Recall, reklamlar, telemetri.");
             AppendLine("Dokunulmaz: Store, winget, Defender, Windows Update.");
             AppendLine("Yedekler: " + ScriptRunner.BackupDir);

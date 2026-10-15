@@ -7,6 +7,8 @@
 
 **Windows 11'i reklam panosu olmaktan çıkarın ve hızlandırın. Tek tıkla, istediğiniz an geri alınabilir şekilde.**
 
+![Windows 11 Debloat uygulaması: solda seçenekler, sağda canlı kayıt](docs/app.png)
+
 Sıfır kurulmuş bir Windows 11 açılır açılmaz Başlat menüsünde kurmadığınız uygulamalar, görev çubuğunda Copilot,
 kilit ekranında "öneriler", arka planda da Microsoft'a giden telemetri ile gelir. Bir kısmı Ayarlar'da hiç yoktur,
 bir kısmı ilk büyük güncellemede geri açılır.
@@ -28,7 +30,7 @@ yaptığını canlı olarak gösterir.
 [**Releases**](https://github.com/cemal-demirci/win11-debloat/releases/latest) sayfasından `Win11-Debloat.exe`'yi indirin
 ve çalıştırın. Yönetici izni ister.
 
-1. Kullandıklarınızın (Edge, Xbox, Spotify...) işaretini kaldırın.
+1. Kullandıklarınızı (Edge, Xbox, Spotify...) kapatın.
 2. **Önizle** ile nelerin değişeceğine bakın. Bu adımda hiçbir şey değişmez.
 3. **Uygula**'ya basın, bitince bilgisayarı yeniden başlatın.
 4. Beğenmezseniz **Geri al**.
@@ -78,8 +80,7 @@ tahmin etmez, karşılaştırır:
 | **Nöbetçi** | Her oturum açışınızdan 2 dakika sonra kontrol eder. Bir şey geri dönmüşse düzeltir ve `guard.log`'a yazar, dönmemişse hiçbir şey yapmaz. |
 
 Nöbetçi, yönetici yetkisiyle çalışan bir zamanlanmış görevdir ("Cemal.cloud Win11 Debloat Guard"). Çalıştırdığı
-scriptin kopyası `Program Files` altında durur, oraya yalnızca yöneticiler yazabilir. Seçeneğin işaretini
-kaldırdığınızda ya da **Geri al**'a bastığınızda görev ve kopyası silinir.
+scriptin kopyası `Program Files` altında durur, oraya yalnızca yöneticiler yazabilir. Seçeneği kapattığınızda ya da **Geri al**'a bastığınızda görev ve kopyası silinir.
 
 ## Performans ayarları
 
@@ -105,11 +106,11 @@ Bilmeniz gerekenler:
   çalışan servis sayısını ve bellek kullanımını bugünküyle yan yana gösterir. Fark kendi bilgisayarınızda ölçülür.
 - Oyunlarda FPS artışı beklemeyin. Kazanç, sistemin daha az iş yapmasından ve tepki süresinden gelir.
 
-İstemezseniz uygulamada **Performans ayarları**'nın işaretini kaldırın (PowerShell'de `-SkipPerformance`).
+İstemezseniz uygulamada **Performans ayarları**'nı kapatın (PowerShell'de `-SkipPerformance`).
 
 ### Oyuncu ayarları (isteğe bağlı)
 
-Varsayılan olarak kapalıdır. Uygulamada **Oyuncu ayarları**'nı işaretleyin (PowerShell'de `-GamingTweaks`):
+Varsayılan olarak kapalıdır. Uygulamada **Oyuncu ayarları**'nı açın (PowerShell'de `-GamingTweaks`):
 
 | | Ne yapar |
 |---|---|
@@ -131,7 +132,7 @@ Fare ayarı bir sonraki oturum açışta, zamanlayıcı ayarı yeniden başlatı
 | **Dokunulmaz** | Defender, Windows Update, işlemci güvenlik korumaları, Microsoft Store, winget, Terminal, Fotoğraflar, Hesap Makinesi, Not Defteri, Paint, Ekran Alıntısı Aracı, iş Teams'i, klasik Outlook, WebView2, Windows Search, Get Help, Intune senkronizasyonu |
 
 > **Dikkat:** Spotify, Netflix gibi üçüncü parti uygulamalar **tüm kullanıcılardan, verileriyle birlikte** kaldırılır.
-> Kullanıyorsanız uygulamada işaretini kaldırın (PowerShell'de `-KeepThirdParty`).
+> Kullanıyorsanız uygulamada kapatın (PowerShell'de `-KeepThirdParty`).
 
 Bazı durumlarda ilgili adım bilerek atlanır:
 
@@ -161,7 +162,7 @@ ile aynı çekirdek):
 | Önizle → Uygula (oyuncu ayarlarıyla) → Nöbetçi → tekrar Uygula → Geri al | 118 kontrol geçti. Uygulama 118 registry değerini değiştirdi ve performans güç planını açtı. Geri al hepsini, güç planı dahil, eski haline döndürdü. Önizleme hiçbir şeye dokunmadı. |
 | Windows güncellemesi taklidi | Telemetri politikası sıfırlandı, Copilot politikası silindi, bir görev yeniden açıldı. **Kontrol et** üçünü de buldu, **Yeniden uygula** düzeltti. Nöbetçi görevi kuruldu, yeni bir değişikliği kendi başına çalışıp düzeltti. |
 | Uygulama, penceresiz | Gömülü scriptler repodakilerle aynı. 64-bit PowerShell kullanılıyor. Önizle, Uygula, Kontrol et, Nöbetçi kur / kaldır ve Geri al uygulama üzerinden sorunsuz. |
-| Uygulama, penceresiyle | Pencere açıldı, Edge'in işareti tıklamayla kaldırıldı, **Önizle**'ye basıldı. Script `-KeepEdge` ile çalıştı, sonuç pencerede göründü. Bir politika geri değiştirildikten sonra açılan yeni pencere bunu kendiliğinden fark etti. |
+| Uygulama, penceresiyle | Pencere açıldı, Edge seçeneği tıklamayla kapatıldı, **Önizle**'ye basıldı. Script `-KeepEdge` ile çalıştı, sonuç pencerede göründü. Bir politika geri değiştirildikten sonra açılan yeni pencere bunu kendiliğinden fark etti. |
 
 Dürüst not: sunucu sürümünde Store uygulamaları, Edge kaldırma ve OneDrive olmadığı için bu kısımlar testin dışında
 kalıyor. CI makinesi yeniden başlatılamadığı için performans ayarlarının yeniden başlatma sonrası etkisi orada
@@ -172,14 +173,14 @@ kalıyor. CI makinesi yeniden başlatılamadığı için performans ayarlarını
 | Uygulamada | PowerShell'de | Ne yapar |
 |---|---|---|
 | Önizle | `-DryRun` | Hiçbir şeyi değiştirmez, yapılacakları listeler |
-| Edge'i kaldır (işaretsiz) | `-KeepEdge` | Edge kalır, ayarları yine sadeleşir |
-| OneDrive'ı kaldır (işaretsiz) | `-KeepOneDrive` | OneDrive kalır |
-| Xbox uygulamalarını kaldır (işaretsiz) | `-KeepXbox` | Xbox uygulamaları, servisleri ve Game Bar kalır |
-| Üçüncü parti uygulamaları kaldır (işaretsiz) | `-KeepThirdParty` | Spotify, Netflix, Disney+ gibi uygulamalar kalır |
-| Yeni Outlook'u kaldır (işaretsiz) | `-KeepOutlookNew` | Yeni Outlook kalır |
-| Arayüz ayarları (işaretsiz) | `-SkipUiTweaks` | Dosya uzantısı, sağ tık menüsü gibi ayarlara dokunmaz |
-| Performans ayarları (işaretsiz) | `-SkipPerformance` | Saydamlık, animasyon, arka plan, zamanlayıcı ve güç ayarlarına dokunmaz |
-| Oyuncu ayarları (işaretli) | `-GamingTweaks` | Fare ivmesi kapalı, zamanlayıcı çözünürlüğü, erişilebilirlik kısayolları kapalı, Oyun Modu açık |
+| Edge'i kaldır (kapalı) | `-KeepEdge` | Edge kalır, ayarları yine sadeleşir |
+| OneDrive'ı kaldır (kapalı) | `-KeepOneDrive` | OneDrive kalır |
+| Xbox uygulamalarını kaldır (kapalı) | `-KeepXbox` | Xbox uygulamaları, servisleri ve Game Bar kalır |
+| Üçüncü parti uygulamaları kaldır (kapalı) | `-KeepThirdParty` | Spotify, Netflix, Disney+ gibi uygulamalar kalır |
+| Yeni Outlook'u kaldır (kapalı) | `-KeepOutlookNew` | Yeni Outlook kalır |
+| Arayüz ayarları (kapalı) | `-SkipUiTweaks` | Dosya uzantısı, sağ tık menüsü gibi ayarlara dokunmaz |
+| Performans ayarları (kapalı) | `-SkipPerformance` | Saydamlık, animasyon, arka plan, zamanlayıcı ve güç ayarlarına dokunmaz |
+| Oyuncu ayarları (açık) | `-GamingTweaks` | Fare ivmesi kapalı, zamanlayıcı çözünürlüğü, erişilebilirlik kısayolları kapalı, Oyun Modu açık |
 | Kontrol et | `-Check` | Neyin geri döndüğünü listeler, hiçbir şeyi değiştirmez (çıkış kodu 10: değişen var) |
 | Kontrol et → Evet | `-Reapply` | Yalnızca geri dönenleri son seferki seçeneklerle tekrar uygular |
 | Nöbetçi | `-InstallGuard`, `-RemoveGuard` | Oturum açınca kontrol edip düzelten görevi kurar / kaldırır |
@@ -207,7 +208,7 @@ one click, and records every change so it can be undone in one click. It is a 15
 repository and shows their output live.
 
 - **Download:** `Win11-Debloat.exe` from [Releases](https://github.com/cemal-demirci/win11-debloat/releases/latest).
-  Untick what you use, press **Önizle** (preview), then **Uygula** (apply) and restart. **Geri al** (restore) undoes everything.
+  Turn off what you use, press **Önizle** (preview), then **Uygula** (apply) and restart. **Geri al** (restore) undoes everything.
 - **Performance:** settings that are safe to undo: transparency and animations off (ClearType and thumbnails stay),
   background Store apps off, no startup delay, foreground priority and MMCSS, NTFS last-access off, larger icon cache,
   service host grouping (not with Xbox kept), no P2P update upload, and on desktops without a battery a high
