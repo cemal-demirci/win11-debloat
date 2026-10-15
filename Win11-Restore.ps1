@@ -15,6 +15,10 @@
     By default every run that has not been restored yet is rolled back, newest
     first. Each processed manifest is renamed to undo.restored.json.
 
+    The guard (scheduled task from Win11-Debloat.ps1 -InstallGuard) and the
+    saved state (state.json) are removed first, so nothing re-applies later.
+    Manifests that are not owned by an administrator are ignored.
+
     For a full roll back you can also use the System Restore point the debloat
     script created ("Cemal.cloud Win11-Debloat <timestamp>").
 
@@ -79,6 +83,15 @@ function Convert-RegValue($Value, [string]$Type) {
     }
 }
 
+function Test-TrustedFile([string]$Path) {
+    # Users can create files under %ProgramData%; only trust what an admin wrote.
+    try {
+        $owner = (Get-Acl -LiteralPath $Path).GetOwner([System.Security.Principal.SecurityIdentifier]).Value
+    } catch { return $false }
+    $me = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    return @('S-1-5-32-544', 'S-1-5-18', 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464', $me) -contains $owner
+}
+
 function Get-Prop($Obj, [string]$Name) {
     # StrictMode-safe property read (older manifests may lack newer fields)
     $p = $Obj.PSObject.Properties[$Name]
@@ -100,6 +113,31 @@ if ($Manifest) {
                    ForEach-Object { Join-Path $_.FullName 'undo.json' } |
                    Where-Object { Test-Path -LiteralPath $_ })
 }
+$trusted = @()
+foreach ($m in $manifests) {
+    if (Test-TrustedFile $m) { $trusted += $m } else { Write-Warn2 "ignored (not owned by an administrator): $m" }
+}
+$manifests = $trusted
+
+# ---------------------------------------------------------------------------
+# Guard and saved state first: nothing may re-apply after the restore
+# ---------------------------------------------------------------------------
+$guardTask = 'Cemal.cloud Win11 Debloat Guard'
+$guardDir  = Join-Path $env:ProgramFiles 'CemalCloud\Win11Debloat'
+$guard = Get-ScheduledTask -TaskPath '\' -TaskName $guardTask -ErrorAction SilentlyContinue
+if ($DryRun) {
+    if ($guard) { Write-Dry "remove scheduled task '$guardTask'" }
+} else {
+    if ($guard) {
+        try { Unregister-ScheduledTask -TaskPath '\' -TaskName $guardTask -Confirm:$false; Write-Ok 'guard removed' }
+        catch { Write-Warn2 "could not remove the guard task: $($_.Exception.Message)" }
+    }
+    if (Test-Path -LiteralPath $guardDir) { Remove-Item -LiteralPath $guardDir -Recurse -Force -ErrorAction SilentlyContinue }
+    foreach ($f in 'state.json', 'drift.json') {
+        Remove-Item -LiteralPath (Join-Path $base $f) -Force -ErrorAction SilentlyContinue
+    }
+}
+
 if ($manifests.Count -eq 0) { Write-Warn2 "Nothing to restore (no pending undo.json under $base)"; exit 0 }
 
 $entries = New-Object System.Collections.ArrayList

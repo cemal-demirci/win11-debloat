@@ -10,13 +10,14 @@ namespace CemalCloud.Win11Debloat
 {
     internal sealed class MainForm : Form
     {
-        private enum Mode { Preview, Apply, Restore }
+        private enum Mode { Preview, Apply, Restore, Check, Reapply, GuardInstall, GuardRemove }
 
         private static readonly Color Accent = Color.FromArgb(37, 99, 235);
         private static readonly Color Muted = Color.FromArgb(100, 100, 110);
+        private static readonly Color Alert = Color.FromArgb(194, 65, 12);
 
-        private readonly CheckBox chkEdge, chkOneDrive, chkXbox, chkThirdParty, chkOutlook, chkUi;
-        private readonly Button btnPreview, btnApply, btnRestore;
+        private readonly CheckBox chkEdge, chkOneDrive, chkXbox, chkThirdParty, chkOutlook, chkUi, chkGuard;
+        private readonly Button btnPreview, btnApply, btnCheck, btnRestore;
         private readonly Label lblStatus;
         private readonly ProgressBar progress;
         private readonly TextBox txtLog;
@@ -25,6 +26,9 @@ namespace CemalCloud.Win11Debloat
         private Process running;
         private Mode runningMode;
         private bool sawRestorePointFailure;
+        private bool autoCheck;            // the silent drift check when the window opens
+        private bool rebootPromptAfterGuard;
+        private bool syncingGuard;         // set while the app changes chkGuard itself
 
         public MainForm()
         {
@@ -68,6 +72,11 @@ namespace CemalCloud.Win11Debloat
                 "Sadece Windows ile gelen \"yeni Outlook\" uygulaması. Microsoft 365'teki klasik Outlook etkilenmez.");
             chkUi = Option("chkUi", "Arayüz ayarları (dosya uzantıları, klasik sağ tık menüsü)",
                 "Dosya uzantılarını ve gizli dosyaları gösterir, klasik sağ tık menüsünü getirir, Explorer'ı \"Bu Bilgisayar\" ile açar.");
+            chkGuard = Option("chkGuard", "Nöbetçi: Windows güncellemesi geri açarsa yeniden uygula",
+                "Her oturum açışınızdan 2 dakika sonra kontrol eder. Bir güncelleme ayarları geri açtıysa ya da uygulamaları "
+              + "geri kurduysa yalnızca onları yeniden uygular, her şeyi kaydeder. Kayıt: guard.log. \"Geri al\" nöbetçiyi de kaldırır.");
+            chkGuard.Checked = ScriptRunner.GuardInstalled;
+            chkGuard.CheckedChanged += OnGuardToggled;
 
             var options = new TableLayoutPanel
             {
@@ -87,6 +96,8 @@ namespace CemalCloud.Win11Debloat
             options.SetColumnSpan(chkThirdParty, 2);
             options.Controls.Add(chkUi, 0, 3);
             options.SetColumnSpan(chkUi, 2);
+            options.Controls.Add(chkGuard, 0, 4);
+            options.SetColumnSpan(chkGuard, 2);
 
             var always = new Label
             {
@@ -97,7 +108,7 @@ namespace CemalCloud.Win11Debloat
                 MaximumSize = new Size(700, 0),
                 Margin = new Padding(3, 10, 3, 4)
             };
-            options.Controls.Add(always, 0, 4);
+            options.Controls.Add(always, 0, 5);
             options.SetColumnSpan(always, 2);
 
             var optionsBox = new GroupBox
@@ -115,10 +126,13 @@ namespace CemalCloud.Win11Debloat
                 "Hiçbir şeyi değiştirmez, nelerin yapılacağını listeler.");
             btnApply = ActionButton("btnApply", "Uygula", true,
                 "Önce geri yükleme noktası ve yedek alır, sonra değişiklikleri uygular.");
+            btnCheck = ActionButton("btnCheck", "Kontrol et", false,
+                "Son uygulamadan bu yana Windows'un geri açtığı ayarları ve geri kurduğu uygulamaları listeler. Hiçbir şeyi değiştirmez.");
             btnRestore = ActionButton("btnRestore", "Geri al",
                 false, "Bu uygulamayla yapılan tüm değişiklikleri en yeniden eskiye doğru geri alır.");
             btnPreview.Click += (s, e) => Run(Mode.Preview, false);
             btnApply.Click += (s, e) => Run(Mode.Apply, false);
+            btnCheck.Click += (s, e) => Run(Mode.Check, false);
             btnRestore.Click += (s, e) => Run(Mode.Restore, false);
 
             progress = new ProgressBar
@@ -146,7 +160,7 @@ namespace CemalCloud.Win11Debloat
                 Padding = new Padding(0, 10, 0, 8),
                 WrapContents = false
             };
-            actions.Controls.AddRange(new Control[] { btnPreview, btnApply, btnRestore, progress, lblStatus });
+            actions.Controls.AddRange(new Control[] { btnPreview, btnApply, btnCheck, btnRestore, progress, lblStatus });
 
             // ---- log ----------------------------------------------------------------
             txtLog = new TextBox
@@ -209,6 +223,8 @@ namespace CemalCloud.Win11Debloat
             {
                 txtLog.Select(txtLog.TextLength, 0);   // do not start with the log text selected
                 btnPreview.Focus();
+                // Applied before? Quietly check whether Windows turned anything back.
+                if (ScriptRunner.StateExists) Run(Mode.Check, false, false, true);
             };
             ResumeLayout(false);
             PerformLayout();
@@ -270,7 +286,7 @@ namespace CemalCloud.Win11Debloat
             return s;
         }
 
-        private void Run(Mode mode, bool skipRestorePoint)
+        private void Run(Mode mode, bool skipRestorePoint, bool clearLog = true, bool auto = false)
         {
             if (running != null) return;
 
@@ -290,6 +306,15 @@ namespace CemalCloud.Win11Debloat
                 script = ScriptRunner.RestoreScript;
                 switches = new List<string>();
             }
+            else if (mode == Mode.Check || mode == Mode.Reapply || mode == Mode.GuardInstall || mode == Mode.GuardRemove)
+            {
+                script = ScriptRunner.DebloatScript;
+                switches = new List<string>
+                {
+                    mode == Mode.Check ? "-Check" : mode == Mode.Reapply ? "-Reapply"
+                  : mode == Mode.GuardInstall ? "-InstallGuard" : "-RemoveGuard"
+                };
+            }
             else
             {
                 script = ScriptRunner.DebloatScript;
@@ -298,9 +323,10 @@ namespace CemalCloud.Win11Debloat
                 if (skipRestorePoint) switches.Add("-SkipRestorePoint");
             }
 
-            txtLog.Clear();
+            if (clearLog) txtLog.Clear();
             sawRestorePointFailure = false;
-            SetBusy(true, mode == Mode.Preview ? "Önizleniyor..." : mode == Mode.Apply ? "Uygulanıyor..." : "Geri alınıyor...");
+            autoCheck = auto;
+            SetBusy(true, BusyText(mode));
             runningMode = mode;
             try
             {
@@ -327,14 +353,22 @@ namespace CemalCloud.Win11Debloat
             {
                 Mode mode = runningMode;
                 running = null;
+                if (mode == Mode.Check) { OnCheckDone(code); return; }
+                if (mode == Mode.GuardInstall || mode == Mode.GuardRemove) { OnGuardDone(mode, code); return; }
+                if (code == 0 && mode == Mode.Apply && (chkGuard.Checked || ScriptRunner.GuardInstalled))
+                {
+                    // Apply finished: install (or refresh) the guard as ticked, or remove it, then offer the restart.
+                    rebootPromptAfterGuard = true;
+                    SetBusy(false, "Bitti");
+                    Run(chkGuard.Checked ? Mode.GuardInstall : Mode.GuardRemove, false, false);
+                    return;
+                }
+                if (code == 0 && mode == Mode.Restore) SetGuardBox(false);
                 if (code == 0)
                 {
                     SetBusy(false, mode == Mode.Preview ? "Önizleme bitti, hiçbir şey değişmedi"
-                                  : mode == Mode.Apply ? "Bitti" : "Geri alındı");
-                    if (mode != Mode.Preview && Confirm(
-                            "İşlem tamamlandı. Tüm değişikliklerin geçerli olması için bilgisayarı yeniden başlatmanız gerekiyor.\n\n"
-                          + "Şimdi yeniden başlatılsın mı?"))
-                        Process.Start(new ProcessStartInfo("shutdown.exe", "/r /t 5") { UseShellExecute = false, CreateNoWindow = true });
+                                  : mode == Mode.Apply ? "Bitti" : mode == Mode.Reapply ? "Yeniden uygulandı" : "Geri alındı");
+                    if (mode != Mode.Preview) OfferRestart();
                     return;
                 }
 
@@ -349,6 +383,68 @@ namespace CemalCloud.Win11Debloat
             }));
         }
 
+        private void OnCheckDone(int code)
+        {
+            bool auto = autoCheck;
+            autoCheck = false;
+            if (code == 0) { SetBusy(false, "Kontrol: her şey yerinde"); return; }
+            if (code == 2) { SetBusy(false, "Bu bilgisayarda henüz uygulanmamış"); return; }
+            if (code != ScriptRunner.DriftExitCode) { SetBusy(false, "Kontrol hatası (kod " + code + ")"); return; }
+
+            int n = ScriptRunner.LastDriftCount();
+            string what = n > 0 ? n + " değişikliği" : "bazı değişiklikleri";
+            SetBusy(false, "Windows " + what + " geri almış");
+            lblStatus.ForeColor = Alert;
+            if (!auto && Confirm("Son uygulamadan bu yana Windows " + what + " geri almış (ayrıntılar kayıtta).\n\n"
+                               + "Sadece bunlar, son seferki seçeneklerle yeniden uygulansın mı?"))
+                Run(Mode.Reapply, false, false);
+        }
+
+        private void OnGuardDone(Mode mode, int code)
+        {
+            bool installed = ScriptRunner.GuardInstalled;
+            SetGuardBox(installed);
+            if (code == 0) SetBusy(false, installed ? "Bitti, nöbetçi kuruldu" : "Bitti, nöbetçi kaldırıldı");
+            else SetBusy(false, "Nöbetçi " + (mode == Mode.GuardInstall ? "kurulamadı" : "kaldırılamadı") + " (kod " + code + ")");
+            if (rebootPromptAfterGuard) { rebootPromptAfterGuard = false; OfferRestart(); }
+        }
+
+        private void OnGuardToggled(object sender, EventArgs e)
+        {
+            if (syncingGuard || running != null) return;
+            // Not applied yet: the guard is installed together with "Uygula".
+            if (!ScriptRunner.StateExists) return;
+            if (chkGuard.Checked != ScriptRunner.GuardInstalled)
+                Run(chkGuard.Checked ? Mode.GuardInstall : Mode.GuardRemove, false, false);
+        }
+
+        private void SetGuardBox(bool value)
+        {
+            syncingGuard = true;
+            try { chkGuard.Checked = value; } finally { syncingGuard = false; }
+        }
+
+        private void OfferRestart()
+        {
+            if (Confirm("İşlem tamamlandı. Tüm değişikliklerin geçerli olması için bilgisayarı yeniden başlatmanız gerekiyor.\n\n"
+                      + "Şimdi yeniden başlatılsın mı?"))
+                Process.Start(new ProcessStartInfo("shutdown.exe", "/r /t 5") { UseShellExecute = false, CreateNoWindow = true });
+        }
+
+        private static string BusyText(Mode mode)
+        {
+            switch (mode)
+            {
+                case Mode.Preview: return "Önizleniyor...";
+                case Mode.Apply: return "Uygulanıyor...";
+                case Mode.Check: return "Kontrol ediliyor...";
+                case Mode.Reapply: return "Yeniden uygulanıyor...";
+                case Mode.GuardInstall: return "Nöbetçi kuruluyor...";
+                case Mode.GuardRemove: return "Nöbetçi kaldırılıyor...";
+                default: return "Geri alınıyor...";
+            }
+        }
+
         private void AppendLine(string line)
         {
             txtLog.AppendText(line + "\r\n");
@@ -356,11 +452,12 @@ namespace CemalCloud.Win11Debloat
 
         private void SetBusy(bool busy, string status)
         {
-            btnPreview.Enabled = btnApply.Enabled = btnRestore.Enabled = !busy;
-            foreach (var c in new[] { chkEdge, chkOneDrive, chkXbox, chkThirdParty, chkOutlook, chkUi }) c.Enabled = !busy;
+            btnPreview.Enabled = btnApply.Enabled = btnCheck.Enabled = btnRestore.Enabled = !busy;
+            foreach (var c in new[] { chkEdge, chkOneDrive, chkXbox, chkThirdParty, chkOutlook, chkUi, chkGuard }) c.Enabled = !busy;
             progress.Visible = busy;
             progress.MarqueeAnimationSpeed = busy ? 30 : 0;
             lblStatus.Text = status;
+            lblStatus.ForeColor = Muted;
             UseWaitCursor = busy;
         }
 

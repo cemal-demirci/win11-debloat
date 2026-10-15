@@ -21,8 +21,12 @@ namespace CemalCloud.Win11Debloat
         private static readonly HashSet<string> AllowedSwitches = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "-DryRun", "-KeepEdge", "-KeepOneDrive", "-KeepXbox", "-KeepThirdParty",
-            "-KeepOutlookNew", "-SkipUiTweaks", "-SkipRestorePoint", "-Force"
+            "-KeepOutlookNew", "-SkipUiTweaks", "-SkipRestorePoint", "-Force",
+            "-Check", "-Reapply", "-InstallGuard", "-RemoveGuard"
         };
+
+        /// <summary>Exit code of Win11-Debloat.ps1 -Check when Windows turned something back.</summary>
+        public const int DriftExitCode = 10;
 
         [DllImport("kernel32.dll")]
         private static extern int GetOEMCP();
@@ -39,6 +43,35 @@ namespace CemalCloud.Win11Debloat
                 return Path.Combine(Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "CemalCloud"), "Win11Debloat");
             }
+        }
+
+        /// <summary>The last run saved what it applied, so a drift check is possible.</summary>
+        public static bool StateExists
+        {
+            get { return File.Exists(Path.Combine(BackupDir, "state.json")); }
+        }
+
+        /// <summary>The guard keeps its copy of the script in Program Files (64-bit).</summary>
+        public static bool GuardInstalled
+        {
+            get
+            {
+                string pf = Environment.GetEnvironmentVariable("ProgramW6432");
+                if (string.IsNullOrEmpty(pf)) pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+                return File.Exists(Path.Combine(pf, @"CemalCloud\Win11Debloat\Win11-Debloat.ps1"));
+            }
+        }
+
+        /// <summary>Number of drifted items from the last -Check (drift.json), or -1.</summary>
+        public static int LastDriftCount()
+        {
+            try
+            {
+                string json = File.ReadAllText(Path.Combine(BackupDir, "drift.json"));
+                var m = System.Text.RegularExpressions.Regex.Match(json, "\"Count\"\\s*:\\s*(\\d+)");
+                return m.Success ? int.Parse(m.Groups[1].Value) : -1;
+            }
+            catch { return -1; }
         }
 
         // 64-bit Windows PowerShell 5.1. A 32-bit process would get the 32-bit
@@ -122,7 +155,7 @@ namespace CemalCloud.Win11Debloat
 
         /// <summary>
         /// Headless mode for CI and scripting:
-        ///   Win11-Debloat.exe --run &lt;logfile&gt; preview|apply|restore [-KeepEdge ...]
+        ///   Win11-Debloat.exe --run &lt;logfile&gt; preview|apply|restore|check|reapply|guard-install|guard-remove [-KeepEdge ...]
         /// </summary>
         public static int RunHeadless(string[] args)
         {
@@ -134,6 +167,10 @@ namespace CemalCloud.Win11Debloat
             string script = DebloatScript;
             if (mode == "preview") switches.Insert(0, "-DryRun");
             else if (mode == "restore") { script = RestoreScript; switches.Clear(); }
+            else if (mode == "check") { switches.Clear(); switches.Add("-Check"); }
+            else if (mode == "reapply") { switches.Clear(); switches.Add("-Reapply"); }
+            else if (mode == "guard-install") { switches.Clear(); switches.Add("-InstallGuard"); }
+            else if (mode == "guard-remove") { switches.Clear(); switches.Add("-RemoveGuard"); }
             else if (mode != "apply") return 2;
 
             var lines = new List<string>();

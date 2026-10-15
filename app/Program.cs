@@ -11,7 +11,7 @@ namespace CemalCloud.Win11Debloat
         {
             // Headless helpers (used by CI, also handy for scripting):
             //   --extract <dir>                               write the embedded scripts
-            //   --run <log> preview|apply|restore [switches]   run without a window
+            //   --run <log> preview|apply|restore|check|reapply|guard-install|guard-remove [switches]
             if (args.Length == 2 && args[0] == "--extract")
             {
                 ScriptRunner.Extract(args[1]);

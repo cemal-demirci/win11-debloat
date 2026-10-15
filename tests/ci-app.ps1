@@ -3,7 +3,8 @@
 
     1. the embedded scripts are byte-identical to the repository files
     2. the app runs as a 64-bit process with 64-bit Windows PowerShell
-    3. preview, apply and restore work through the app's own process plumbing
+    3. preview, apply, check, guard install / remove and restore work through
+       the app's own process plumbing
 
     Runs on a disposable CI VM. Do not run this on your own machine.
 #>
@@ -50,6 +51,11 @@ function Test-Run([string]$Label, [string[]]$Arguments, [string[]]$MustContain) 
 Test-Run 'preview' @('preview') @('64-bit process', 'System32\WindowsPowerShell', 'DRY RUN', 'Summary')
 # -SkipRestorePoint: System Restore does not exist on Windows Server runners.
 Test-Run 'apply'   @('apply', '-SkipRestorePoint', '-KeepEdge', '-Force') @('Summary', 'Backups + undo manifest')
+Test-Run 'check'   @('check') @('-Check', 'all in place')
+Test-Run 'guard-install' @('guard-install') @('guard installed')
+Check (Test-Path (Join-Path $env:ProgramFiles 'CemalCloud\Win11Debloat\Win11-Debloat.ps1')) 'guard copy in Program Files'
+Test-Run 'guard-remove' @('guard-remove') @('guard task removed')
+Check (-not (Test-Path (Join-Path $env:ProgramFiles 'CemalCloud\Win11Debloat'))) 'guard copy removed'
 Test-Run 'restore' @('restore') @('Restore finished')
 
 $bad = Invoke-App @('--run', (Join-Path $work 'bad.log'), 'apply', '-Unknown')
@@ -57,6 +63,6 @@ Check ($bad -ne 0) 'unknown switches are rejected'
 
 if ($failures -gt 0) { exit 1 }
 if ($env:GITHUB_ACTIONS) {
-    Write-Host '::notice title=App::Embedded scripts identical to the repository; 64-bit PowerShell; preview, apply and restore all exit 0 through the app; unknown switches rejected.'
+    Write-Host '::notice title=App::Embedded scripts identical to the repository; 64-bit PowerShell; preview, apply, check, guard install / remove and restore all exit 0 through the app; unknown switches rejected.'
 }
 exit 0

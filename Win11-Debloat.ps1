@@ -55,6 +55,26 @@
     Skip safety checks (non-Windows 11 build, OneDrive signed in or folder
     backup active, no alternative browser before removing Edge). Use with care.
 
+.PARAMETER Check
+    Compare the PC with what the last run applied (state.json) and list what
+    Windows changed back: registry values, scheduled tasks enabled again,
+    removed apps that came back, Edge / OneDrive reinstalled. Changes nothing.
+    Exit code 0 = everything in place, 10 = drift found, 2 = nothing applied yet.
+
+.PARAMETER Reapply
+    Run -Check, and if anything drifted, apply again with the options of the
+    last run (no new restore point; every change is recorded for restore).
+
+.PARAMETER InstallGuard
+    Install the guard: a scheduled task that runs -Reapply two minutes after
+    you sign in, so a feature update cannot quietly turn things back on.
+    The script is copied to %ProgramFiles%\CemalCloud\Win11Debloat (admin-only
+    folder). Every guard run is logged to guard.log in the backup folder.
+
+.PARAMETER RemoveGuard
+    Remove the guard task and its copy of the script. Win11-Restore.ps1 also
+    removes it.
+
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File .\Win11-Debloat.ps1 -DryRun
 
@@ -63,6 +83,9 @@
 
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File .\Win11-Debloat.ps1 -KeepEdge -KeepXbox
+
+.EXAMPLE
+    powershell -ExecutionPolicy Bypass -File .\Win11-Debloat.ps1 -Check
 
 .NOTES
     Project : Cemal.cloud win11-debloat  (https://github.com/cemal-demirci/win11-debloat)
@@ -81,22 +104,39 @@ param(
     [switch]$KeepThirdParty,
     [switch]$SkipUiTweaks,
     [switch]$SkipRestorePoint,
-    [switch]$Force
+    [switch]$Force,
+    [switch]$Check,
+    [switch]$Reapply,
+    [switch]$InstallGuard,
+    [switch]$RemoveGuard
 )
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 $ProgressPreference    = 'SilentlyContinue'
 
-$ScriptVersion = '1.0.0'
+$ScriptVersion = '1.1.0'
 $Stamp     = Get-Date -Format 'yyyyMMdd-HHmmss'
 $BaseDir   = Join-Path $env:ProgramData 'CemalCloud\Win11Debloat'
 $BackupDir = Join-Path $BaseDir $Stamp
 $UndoFile  = Join-Path $BackupDir 'undo.json'
+$StateFile = Join-Path $BaseDir 'state.json'      # what the last run applied (for -Check)
+$DriftFile = Join-Path $BaseDir 'drift.json'
+$GuardLog  = Join-Path $BaseDir 'guard.log'
+$GuardTask = 'Cemal.cloud Win11 Debloat Guard'
+$GuardDir  = Join-Path $env:ProgramFiles 'CemalCloud\Win11Debloat'
 
 $script:Undo  = New-Object System.Collections.ArrayList
 $script:Stats = [ordered]@{ Apps = 0; Registry = 0; Tasks = 0; Features = 0; Skipped = 0; Failed = 0 }
 $script:Aborted = $false
+# Desired state collected during a run: every value / task this run put in place
+# (changed now or already right), so -Check can tell later what Windows turned back.
+$script:Desired = @{
+    Reg = New-Object System.Collections.ArrayList; Tasks = New-Object System.Collections.ArrayList
+    Apps = @(); Stuck = New-Object System.Collections.ArrayList
+    Edge = $false; OneDrive = $false; Recall = $false
+}
+$script:DriftExit = 0; $script:DriftCount = 0
 
 # ---------------------------------------------------------------------------
 # Output helpers
@@ -104,7 +144,9 @@ $script:Aborted = $false
 function Write-Banner {
     Write-Host ''
     Write-Host ("  Cemal.cloud | Windows 11 Debloat v{0}" -f $ScriptVersion) -ForegroundColor Cyan
-    if ($DryRun) { Write-Host '  DRY RUN: nothing will be changed' -ForegroundColor Yellow }
+    if ($Check)      { Write-Host '  CHECK: comparing with the last run, nothing will be changed' -ForegroundColor Yellow }
+    elseif ($DryRun) { Write-Host '  DRY RUN: nothing will be changed' -ForegroundColor Yellow }
+    if ($Reapply)    { Write-Host '  REAPPLY: only if Windows turned something back' -ForegroundColor Yellow }
     Write-Host ''
 }
 
@@ -177,7 +219,10 @@ function Set-Reg {
             $oldType = $key.GetValueKind($lookup).ToString()
         }
     }
-    if ($existed -and $oldType -eq $Type -and ("$old" -eq "$Value")) { return }
+    if ($existed -and $oldType -eq $Type -and ("$old" -eq "$Value")) {
+        [void]$script:Desired.Reg.Add([ordered]@{ Path = $Path; Name = $Name; Value = $Value; Type = $Type })
+        return
+    }
 
     if ($DryRun) { Write-Dry ("reg {0}\{1} = {2}" -f $Path, $Name, $Value); return }
     $createdRoot = $null
@@ -199,7 +244,8 @@ function Set-Reg {
         if ($null -eq $wk) { throw "cannot open $Path for writing" }
         try { $wk.SetValue($lookup, $Value, [Microsoft.Win32.RegistryValueKind]$Type) } finally { $wk.Close() }
         Add-Undo @{ Kind = 'Reg'; Path = $Path; Name = $Name; Existed = $existed
-                    OldValue = $old; OldType = $oldType; CreatedRoot = $createdRoot }
+                    OldValue = $old; OldType = $oldType; CreatedRoot = $createdRoot; Value = $Value; Type = $Type }
+        [void]$script:Desired.Reg.Add([ordered]@{ Path = $Path; Name = $Name; Value = $Value; Type = $Type })
         $script:Stats.Registry++
     } catch {
         # The branch did not exist before this call, so removing it is safe.
@@ -223,11 +269,15 @@ function Disable-Svc {
 function Disable-Task {
     param([Parameter(Mandatory)][string]$TaskPath, [Parameter(Mandatory)][string]$TaskName)
     $t = Get-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -ErrorAction SilentlyContinue
-    if (-not $t -or $t.State -eq 'Disabled') { return }
+    if (-not $t) { return }
+    if ($t.State -eq 'Disabled') {
+        [void]$script:Desired.Tasks.Add([ordered]@{ Path = $TaskPath; Name = $TaskName }); return
+    }
     if ($DryRun) { Write-Dry ("task {0}{1} -> disabled" -f $TaskPath, $TaskName); return }
     try {
         Disable-ScheduledTask -InputObject $t -ErrorAction Stop | Out-Null
         Add-Undo @{ Kind = 'Task'; Path = $TaskPath; Name = $TaskName }
+        [void]$script:Desired.Tasks.Add([ordered]@{ Path = $TaskPath; Name = $TaskName })
         $script:Stats.Tasks++
     } catch {
         Write-Warn2 ("task {0}{1}: {2}" -f $TaskPath, $TaskName, $_.Exception.Message)
@@ -265,6 +315,7 @@ function Remove-App {
             $script:Stats.Apps++
         } catch {
             Write-Warn2 ("could not remove {0}: {1}" -f $p.Name, $_.Exception.Message)
+            [void]$script:Desired.Stuck.Add($p.Name)    # -Check must not report it forever
             $script:Stats.Failed++
         }
     }
@@ -294,10 +345,248 @@ function Get-AlternativeBrowser {
     return @($found | Select-Object -Unique)
 }
 
+# ---------------------------------------------------------------------------
+# Desired state, drift check and guard
+# ---------------------------------------------------------------------------
+function Protect-Dir([string]$Path) {
+    # %ProgramData% lets every user create files in subfolders. Undo manifests
+    # and state.json are read by elevated code (restore, guard), so only
+    # Administrators and SYSTEM may write here; users can still read.
+    try {
+        $acl = New-Object System.Security.AccessControl.DirectorySecurity
+        $acl.SetAccessRuleProtection($true, $false)
+        $inh = [System.Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit'
+        $none = [System.Security.AccessControl.PropagationFlags]::None
+        foreach ($rule in @(@('S-1-5-32-544', 'FullControl'), @('S-1-5-18', 'FullControl'), @('S-1-5-32-545', 'ReadAndExecute'))) {
+            $id = New-Object System.Security.Principal.SecurityIdentifier($rule[0])
+            $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($id, $rule[1], $inh, $none, 'Allow')))
+        }
+        Set-Acl -LiteralPath $Path -AclObject $acl
+    } catch {
+        Write-Warn2 "could not restrict permissions on ${Path}: $($_.Exception.Message)"
+        return
+    }
+    try {
+        # A folder someone else created first must not stay theirs.
+        $o = New-Object System.Security.AccessControl.DirectorySecurity
+        $o.SetOwner((New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-544')))
+        Set-Acl -LiteralPath $Path -AclObject $o
+    } catch { }
+}
+
+function Test-TrustedFile([string]$Path) {
+    # Only trust files owned by Administrators, SYSTEM, TrustedInstaller or the
+    # account running this script (an elevated admin wrote them).
+    try {
+        $owner = (Get-Acl -LiteralPath $Path).GetOwner([System.Security.Principal.SecurityIdentifier]).Value
+    } catch { return $false }
+    $me = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    return @('S-1-5-32-544', 'S-1-5-18', 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464', $me) -contains $owner
+}
+
+function Get-Prop($Obj, [string]$Name) {
+    if ($null -eq $Obj) { return $null }
+    $p = $Obj.PSObject.Properties[$Name]
+    if ($p) { return $p.Value } else { return $null }
+}
+
+function Read-State {
+    if (-not (Test-Path -LiteralPath $StateFile)) { return $null }
+    if (-not (Test-TrustedFile $StateFile)) {
+        Write-Warn2 "ignoring $StateFile : it is not owned by an administrator"
+        return $null
+    }
+    try { return (Get-Content -LiteralPath $StateFile -Raw | ConvertFrom-Json) } catch { return $null }
+}
+
+function Save-State {
+    if ($DryRun -or $script:Aborted) { return }
+    $state = [ordered]@{
+        Version  = $ScriptVersion
+        Time     = (Get-Date).ToString('yyyy-MM-dd HH:mm')
+        Backup   = $BackupDir
+        Options  = [ordered]@{
+            KeepEdge = [bool]$KeepEdge; KeepOneDrive = [bool]$KeepOneDrive; KeepXbox = [bool]$KeepXbox
+            KeepOutlookNew = [bool]$KeepOutlookNew; KeepThirdParty = [bool]$KeepThirdParty
+            SkipUiTweaks = [bool]$SkipUiTweaks; Force = [bool]$Force
+        }
+        Reg      = @($script:Desired.Reg.ToArray())
+        Tasks    = @($script:Desired.Tasks.ToArray())
+        Apps     = @($script:Desired.Apps)
+        Stuck    = @($script:Desired.Stuck.ToArray())
+        Edge     = $script:Desired.Edge
+        OneDrive = $script:Desired.OneDrive
+        Recall   = $script:Desired.Recall
+    }
+    try {
+        Set-Content -LiteralPath $StateFile -Value (ConvertTo-Json -InputObject $state -Depth 6) -Encoding UTF8
+    } catch { Write-Warn2 "Could not write state.json: $($_.Exception.Message)" }
+}
+
+function Add-GuardLog([string]$Text) {
+    if (-not $Reapply) { return }
+    try {
+        if (-not (Test-Path -LiteralPath $BaseDir)) { New-Item -ItemType Directory -Path $BaseDir -Force | Out-Null; Protect-Dir $BaseDir }
+        Add-Content -LiteralPath $GuardLog -Value ("{0}  {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $Text) -Encoding UTF8
+    } catch { }
+}
+
+function Invoke-DriftCheck {
+    # Sets $script:DriftExit: 0 = all in place, 10 = drift, 2 = nothing applied yet.
+    Write-Step 'Checking what Windows changed back since the last run'
+    $state = Read-State
+    if (-not $state) {
+        Write-Info 'Nothing applied on this PC yet (no state.json). Run the debloat first.'
+        $script:DriftExit = 2; return
+    }
+    Write-Info ("last run: {0} (v{1})" -f (Get-Prop $state 'Time'), (Get-Prop $state 'Version'))
+    $drift = New-Object System.Collections.ArrayList
+    $nReg = 0; $nTask = 0
+
+    foreach ($e in @(Get-Prop $state 'Reg')) {
+        if ($null -eq $e) { continue }
+        $nReg++
+        $name = [string]$e.Name; $lookup = if ($name -eq '(Default)') { '' } else { $name }
+        $found = '<missing>'
+        $k = $null
+        try { $k = Open-RegKey -PsPath ([string]$e.Path) } catch { }
+        if ($k) {
+            try {
+                if ($k.GetValueNames() -contains $lookup) {
+                    $cur = $k.GetValue($lookup, $null, 'DoNotExpandEnvironmentNames')
+                    $kind = $k.GetValueKind($lookup).ToString()
+                    $found = if ($kind -eq [string]$e.Type) { "$cur" } else { "$cur ($kind)" }
+                }
+            } finally { $k.Close() }
+        }
+        if ($found -ne "$($e.Value)") {
+            [void]$drift.Add([ordered]@{ Kind = 'Reg'; What = ("{0}\{1}" -f $e.Path, $name); Expected = "$($e.Value)"; Found = $found })
+        }
+    }
+
+    foreach ($t in @(Get-Prop $state 'Tasks')) {
+        if ($null -eq $t) { continue }
+        $nTask++
+        $task = Get-ScheduledTask -TaskPath ([string]$t.Path) -TaskName ([string]$t.Name) -ErrorAction SilentlyContinue
+        if ($task -and $task.State -ne 'Disabled') {
+            [void]$drift.Add([ordered]@{ Kind = 'Task'; What = ("{0}{1}" -f $t.Path, $t.Name); Expected = 'Disabled'; Found = "$($task.State)" })
+        }
+    }
+
+    $patterns = @(@(Get-Prop $state 'Apps') | Where-Object { $_ })
+    $stuck    = @(@(Get-Prop $state 'Stuck') | Where-Object { $_ })
+    if ($patterns.Count -gt 0) {
+        $seen = @{}
+        foreach ($p in @(Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue)) {
+            if ($seen.ContainsKey($p.Name) -or $stuck -contains $p.Name) { continue }
+            if ($p.PSObject.Properties['NonRemovable'] -and $p.NonRemovable) { continue }
+            foreach ($pat in $patterns) {
+                if ($p.Name -like $pat) {
+                    $seen[$p.Name] = $true
+                    [void]$drift.Add([ordered]@{ Kind = 'App'; What = $p.Name; Expected = 'removed'; Found = 'installed' })
+                    break
+                }
+            }
+        }
+    }
+
+    if ((Get-Prop $state 'Edge') -and (Test-Path "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe")) {
+        [void]$drift.Add([ordered]@{ Kind = 'Edge'; What = 'Microsoft Edge'; Expected = 'removed'; Found = 'installed' })
+    }
+    if ((Get-Prop $state 'OneDrive') -and ((Test-Path "$env:LOCALAPPDATA\Microsoft\OneDrive\OneDrive.exe") -or
+                                           (Test-Path "$env:ProgramFiles\Microsoft OneDrive\OneDrive.exe"))) {
+        [void]$drift.Add([ordered]@{ Kind = 'OneDrive'; What = 'OneDrive'; Expected = 'removed'; Found = 'installed' })
+    }
+    if (Get-Prop $state 'Recall') {
+        $f = $null
+        try { $f = Get-WindowsOptionalFeature -Online -FeatureName 'Recall' -ErrorAction Stop } catch { }
+        if ($f -and $f.State -eq 'Enabled') {
+            [void]$drift.Add([ordered]@{ Kind = 'Feature'; What = 'Recall'; Expected = 'Disabled'; Found = 'Enabled' })
+        }
+    }
+
+    $shown = 0
+    foreach ($d in $drift) {
+        if ($shown -ge 40) { Write-Info ("... and {0} more (see {1})" -f ($drift.Count - $shown), $DriftFile); break }
+        switch ($d.Kind) {
+            'Reg'   { Write-Warn2 ("reg {0}: expected {1}, found {2}" -f $d.What, $d.Expected, $d.Found) }
+            'Task'  { Write-Warn2 ("task enabled again: {0}" -f $d.What) }
+            default { Write-Warn2 ("{0} is back: {1}" -f $d.Kind.ToLower(), $d.What) }
+        }
+        $shown++
+    }
+    $report = [ordered]@{ Time = (Get-Date).ToString('yyyy-MM-dd HH:mm'); Count = $drift.Count
+                          Checked = [ordered]@{ Registry = $nReg; Tasks = $nTask; AppPatterns = $patterns.Count }
+                          Items = @($drift.ToArray()) }
+    try { Set-Content -LiteralPath $DriftFile -Value (ConvertTo-Json -InputObject $report -Depth 5) -Encoding UTF8 } catch { }
+
+    if ($drift.Count -eq 0) {
+        Write-Ok ("all in place: {0} registry values, {1} scheduled tasks, removed apps still gone" -f $nReg, $nTask)
+        $script:DriftExit = 0
+    } else {
+        Write-Info ''
+        Write-Info ("DRIFT: {0} change(s) were turned back (checked {1} registry values, {2} tasks, apps)." -f $drift.Count, $nReg, $nTask)
+        Write-Info 'Fix with: Win11-Debloat.ps1 -Reapply   (or "Uygula" in the app)'
+        $script:DriftExit = 10
+    }
+    $script:DriftCount = $drift.Count
+}
+
+function Install-Guard {
+    Write-Step 'Guard: re-check after every sign-in'
+    if (-not (Read-State)) {
+        Write-Warn2 'Apply the debloat first. The guard keeps an applied state in place.'
+        return 2
+    }
+    $user = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    $target = Join-Path $GuardDir 'Win11-Debloat.ps1'
+    if ($DryRun) {
+        Write-Dry "copy scripts to $GuardDir"
+        Write-Dry "scheduled task '$GuardTask': at sign-in of $user, run -Reapply"
+        return 0
+    }
+    # %ProgramFiles% is admin-only by default, so a standard user cannot swap
+    # the script that the task runs with highest privileges.
+    New-Item -ItemType Directory -Path $GuardDir -Force | Out-Null
+    Copy-Item -LiteralPath $PSCommandPath -Destination $target -Force
+    $restore = Join-Path (Split-Path -Parent $PSCommandPath) 'Win11-Restore.ps1'
+    if (Test-Path -LiteralPath $restore) { Copy-Item -LiteralPath $restore -Destination (Join-Path $GuardDir 'Win11-Restore.ps1') -Force }
+
+    $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $action = New-ScheduledTaskAction -Execute $ps `
+        -Argument ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}" -Reapply' -f $target)
+    $trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
+    $trigger.Delay = 'PT2M'
+    $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Highest
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable `
+        -ExecutionTimeLimit (New-TimeSpan -Minutes 30) -MultipleInstances IgnoreNew
+    Register-ScheduledTask -TaskName $GuardTask -TaskPath '\' -Action $action -Trigger $trigger -Principal $principal `
+        -Settings $settings -Force `
+        -Description 'Cemal.cloud win11-debloat: after sign-in, re-applies only what Windows turned back. Log: %ProgramData%\CemalCloud\Win11Debloat\guard.log' | Out-Null
+    Write-Ok "guard installed: runs 2 minutes after $user signs in"
+    Write-Info "log    : $GuardLog"
+    Write-Info 'remove : Win11-Debloat.ps1 -RemoveGuard (Win11-Restore.ps1 removes it too)'
+    return 0
+}
+
+function Remove-Guard {
+    Write-Step 'Guard'
+    $t = Get-ScheduledTask -TaskPath '\' -TaskName $GuardTask -ErrorAction SilentlyContinue
+    if ($DryRun) { if ($t) { Write-Dry "remove scheduled task '$GuardTask'" }; return 0 }
+    if ($t) { Unregister-ScheduledTask -TaskPath '\' -TaskName $GuardTask -Confirm:$false; Write-Ok 'guard task removed' }
+    else { Write-Info 'guard not installed' }
+    if (Test-Path -LiteralPath $GuardDir) { Remove-Item -LiteralPath $GuardDir -Recurse -Force -ErrorAction SilentlyContinue }
+    return 0
+}
+
 # ===========================================================================
 # 0. Pre-flight
 # ===========================================================================
 Write-Banner
+
+if ($InstallGuard) { exit (Install-Guard) }
+if ($RemoveGuard)  { exit (Remove-Guard) }
+if ($Check)        { Invoke-DriftCheck; exit $script:DriftExit }
 
 $build = [Environment]::OSVersion.Version.Build
 if ($build -lt 22000 -and -not $Force) {
@@ -305,7 +594,23 @@ if ($build -lt 22000 -and -not $Force) {
     exit 1
 }
 
+if ($Reapply) {
+    $prev = Read-State
+    Invoke-DriftCheck
+    if ($script:DriftExit -ne 10) {
+        Add-GuardLog ($(if ($script:DriftExit -eq 0) { 'no drift' } else { 'nothing applied yet, guard idle' }))
+        exit 0
+    }
+    # Same choices as the last run.
+    $opt = Get-Prop $prev 'Options'
+    foreach ($n in 'KeepEdge', 'KeepOneDrive', 'KeepXbox', 'KeepOutlookNew', 'KeepThirdParty', 'SkipUiTweaks', 'Force') {
+        Set-Variable -Name $n -Value ([bool](Get-Prop $opt $n))
+    }
+    Write-Step ("Reapplying with the options of the last run ({0} drifted)" -f $script:DriftCount)
+}
+
 New-Item -ItemType Directory -Path $BackupDir -Force | Out-Null
+Protect-Dir $BaseDir
 try { Start-Transcript -Path (Join-Path $BackupDir 'debloat.log') -Force | Out-Null } catch { }
 
 try {
@@ -316,35 +621,39 @@ try {
     if ($DryRun) {
         Write-Dry 'create restore point, export registry, save app list'
     } else {
-        # Windows allows one restore point per 24h by default. Lift that limit
-        # only for this checkpoint and put the original setting straight back.
-        $srKey  = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore'
-        $srName = 'SystemRestorePointCreationFrequency'
-        $srHad  = $false; $srOld = $null
-        try {
-            $k = Get-Item -LiteralPath $srKey -ErrorAction Stop
-            if ($k.GetValueNames() -contains $srName) { $srHad = $true; $srOld = $k.GetValue($srName) }
-        } catch { }
-        try {
-            Enable-ComputerRestore -Drive "$env:SystemDrive\" -ErrorAction Stop
-            New-ItemProperty -LiteralPath $srKey -Name $srName -Value 0 -PropertyType DWord -Force | Out-Null
-            # -WarningAction Stop: a silently skipped checkpoint must count as a failure
-            Checkpoint-Computer -Description "Cemal.cloud Win11-Debloat $Stamp" -RestorePointType 'MODIFY_SETTINGS' `
-                -ErrorAction Stop -WarningAction Stop
-            Write-Ok 'restore point created'
-        } catch {
-            if ($SkipRestorePoint) {
-                Write-Warn2 "restore point failed ($($_.Exception.Message)), continuing because of -SkipRestorePoint"
-            } else {
-                Write-Warn2 "restore point failed: $($_.Exception.Message)"
-                Write-Warn2 'Aborting. Fix System Protection or re-run with -SkipRestorePoint.'
-                throw 'RestorePointFailed'
-            }
-        } finally {
+        if ($Reapply) {
+            Write-Info 'no new restore point for a reapply (the first run made one); every change is still recorded'
+        } else {
+            # Windows allows one restore point per 24h by default. Lift that limit
+            # only for this checkpoint and put the original setting straight back.
+            $srKey  = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore'
+            $srName = 'SystemRestorePointCreationFrequency'
+            $srHad  = $false; $srOld = $null
             try {
-                if ($srHad) { New-ItemProperty -LiteralPath $srKey -Name $srName -Value $srOld -PropertyType DWord -Force | Out-Null }
-                else { Remove-ItemProperty -LiteralPath $srKey -Name $srName -ErrorAction SilentlyContinue }
+                $k = Get-Item -LiteralPath $srKey -ErrorAction Stop
+                if ($k.GetValueNames() -contains $srName) { $srHad = $true; $srOld = $k.GetValue($srName) }
             } catch { }
+            try {
+                Enable-ComputerRestore -Drive "$env:SystemDrive\" -ErrorAction Stop
+                New-ItemProperty -LiteralPath $srKey -Name $srName -Value 0 -PropertyType DWord -Force | Out-Null
+                # -WarningAction Stop: a silently skipped checkpoint must count as a failure
+                Checkpoint-Computer -Description "Cemal.cloud Win11-Debloat $Stamp" -RestorePointType 'MODIFY_SETTINGS' `
+                    -ErrorAction Stop -WarningAction Stop
+                Write-Ok 'restore point created'
+            } catch {
+                if ($SkipRestorePoint) {
+                    Write-Warn2 "restore point failed ($($_.Exception.Message)), continuing because of -SkipRestorePoint"
+                } else {
+                    Write-Warn2 "restore point failed: $($_.Exception.Message)"
+                    Write-Warn2 'Aborting. Fix System Protection or re-run with -SkipRestorePoint.'
+                    throw 'RestorePointFailed'
+                }
+            } finally {
+                try {
+                    if ($srHad) { New-ItemProperty -LiteralPath $srKey -Name $srName -Value $srOld -PropertyType DWord -Force | Out-Null }
+                    else { Remove-ItemProperty -LiteralPath $srKey -Name $srName -ErrorAction SilentlyContinue }
+                } catch { }
+            }
         }
 
         $exports = [ordered]@{
@@ -404,6 +713,7 @@ try {
     if (-not $KeepOutlookNew) { $apps += 'Microsoft.OutlookForWindows' }
 
     foreach ($a in $apps) { Remove-App -Pattern $a }
+    $script:Desired.Apps = $apps
 
     # =======================================================================
     # 3. Copilot, Recall and other AI features
@@ -433,9 +743,10 @@ try {
                 Add-Undo @{ Kind = 'Feature'; Name = 'Recall' }
                 $script:Stats.Features++
                 Write-Ok 'Recall feature disabled'
+                $script:Desired.Recall = $true
             } catch { Write-Warn2 "Recall: $($_.Exception.Message)" }
         }
-    }
+    } elseif ($recall) { $script:Desired.Recall = $true }
 
     # =======================================================================
     # 4. Telemetry and privacy
@@ -555,6 +866,7 @@ try {
                      Sort-Object LastWriteTime -Descending | Select-Object -First 1
             if (-not $setup) {
                 Write-Info 'Edge not installed'
+                $script:Desired.Edge = $true
             } elseif ($DryRun) {
                 Write-Dry "uninstall Edge via $($setup.FullName)"
             } else {
@@ -579,6 +891,7 @@ try {
                 } else {
                     Write-Ok 'Edge removed (WebView2 runtime kept)'
                     Add-Undo @{ Kind = 'Edge' }
+                    $script:Desired.Edge = $true
                     # Stop Edge Update from installing it again. WebView2 is a different app id and keeps updating.
                     Set-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\EdgeUpdate' 'Install{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}' 0
                     Set-Reg 'HKLM:\SOFTWARE\Microsoft\EdgeUpdate' 'DoNotUpdateToEdgeWithChromium' 1
@@ -628,6 +941,7 @@ try {
 
             if ($setups.Count -eq 0) {
                 Write-Info 'OneDrive not installed'
+                $script:Desired.OneDrive = $true
             } elseif ($DryRun) {
                 Write-Dry 'uninstall OneDrive'
             } else {
@@ -636,6 +950,7 @@ try {
                     try { Start-Process -FilePath $s.Path -ArgumentList $s.Args -Wait -WindowStyle Hidden } catch { }
                 }
                 Add-Undo @{ Kind = 'OneDrive' }
+                $script:Desired.OneDrive = $true
                 Write-Ok 'OneDrive uninstalled'
                 Write-Info "Your local OneDrive folder ($env:USERPROFILE\OneDrive) was NOT deleted."
             }
@@ -689,6 +1004,7 @@ catch {
 }
 finally {
     Save-Undo
+    Save-State
 }
 
 # ===========================================================================
@@ -701,10 +1017,16 @@ if (-not $DryRun) {
     Write-Info 'Roll back with          : .\Win11-Restore.ps1'
 }
 if ($script:Aborted) {
+    Add-GuardLog ("reapply aborted, see {0}" -f $BackupDir)
     try { Stop-Transcript | Out-Null } catch { }
     exit 1
 }
-if (-not $DryRun) {
+if ($Reapply -and -not $DryRun) {
+    Add-GuardLog ("drift {0} -> reapplied: {1} registry, {2} tasks, {3} apps, {4} failed. Backup: {5}" -f `
+        $script:DriftCount, $script:Stats.Registry, $script:Stats.Tasks, $script:Stats.Apps, $script:Stats.Failed, $BackupDir)
+    Write-Host ''
+    Write-Host '  Reapplied. Sign out and back in (or restart) to see every change.' -ForegroundColor Green
+} elseif (-not $DryRun) {
     # Restart Explorer in this session only (other signed-in users are left alone).
     # Only if Explorer runs in this session (not over SSH / remoting / CI), and never fatal.
     try {

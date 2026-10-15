@@ -3,9 +3,12 @@
 
     1. -DryRun must not change any registry value and must not write undo.json
     2. A real run must apply the expected values
-    3. A second run must be safe (repeat runs after feature updates)
-    4. Win11-Restore.ps1 must put every checked value back exactly as before,
-       including removing keys the debloat script created
+    3. Guard: -Check finds nothing right after a run; after simulated drift
+       (what a feature update does) it reports exactly that, -Reapply fixes it,
+       the scheduled task installs, runs and fixes drift on its own
+    4. A second run must be safe (repeat runs after feature updates)
+    5. Win11-Restore.ps1 must put every checked value back exactly as before,
+       including removing keys the debloat script created, and remove the guard
 
     Runs on a disposable CI VM. Do not run this on your own machine.
 #>
@@ -24,12 +27,15 @@ function Get-Val([string]$Path, [string]$Name) {
     return '<novalue>'
 }
 
-function Invoke-Script([string]$File, [string[]]$Arguments) {
+function Invoke-Script([string]$File, [string[]]$Arguments, [int]$Expect = 0) {
     Write-Host ""
     Write-Host ">>> $File $($Arguments -join ' ')" -ForegroundColor Cyan
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root $File) @Arguments
+    # stdout only: with ErrorActionPreference Stop, 2>&1 would turn native stderr into errors
+    $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root $File) @Arguments | Out-String
     $code = $LASTEXITCODE
-    if ($code -ne 0) { throw "$File exited with $code" }
+    Write-Host $out
+    $script:LastOut = $out
+    if ($code -ne $Expect) { throw "$File exited with $code (expected $Expect)" }
 }
 
 $checks = @(
@@ -90,14 +96,94 @@ if ($manifests.Count -ge 1) {
     Write-Host "first run changed: $firstRun"
 }
 
-# ---------------------------------------------------------------- 3. repeat run
+# ---------------------------------------------------------------- 3. guard
+$state = Join-Path $base 'state.json'
+$guardTask = 'Cemal.cloud Win11 Debloat Guard'
+$guardDir  = Join-Path $env:ProgramFiles 'CemalCloud\Win11Debloat'
+$telemetry = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection'
+$copilot   = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot'
+Assert (Test-Path -LiteralPath $state) 'first run saved state.json'
+$acl = Get-Acl -LiteralPath $base
+$writeBits = [int][System.Security.AccessControl.FileSystemRights]'WriteData, AppendData, WriteExtendedAttributes, WriteAttributes, Delete, ChangePermissions, TakeOwnership'
+$usersWrite = @($acl.Access | Where-Object {
+    $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value -match '^S-1-5-32-545$|^S-1-5-11$|^S-1-1-0$|^S-1-3-0$' -and
+    ([int]$_.FileSystemRights -band $writeBits) })
+Assert ($acl.AreAccessRulesProtected -and $usersWrite.Count -eq 0) 'backup folder: only admins can write (users, creator owner: read only)'
+
+Invoke-Script 'Win11-Debloat.ps1' @('-Check') 0
+Assert ("$script:LastOut" -match 'all in place') 'check right after the run: all in place'
+
+# Simulate what a feature update does: policy reset, policy deleted, task enabled again.
+Set-ItemProperty -LiteralPath $telemetry -Name 'AllowTelemetry' -Value 3 -Type DWord
+Remove-ItemProperty -LiteralPath $copilot -Name 'TurnOffWindowsCopilot'
+$expectDrift = 2
+$st = Get-Content -LiteralPath $state -Raw | ConvertFrom-Json
+$task = @($st.Tasks) | Where-Object { $_ } | Select-Object -First 1
+if ($task) {
+    Enable-ScheduledTask -TaskPath $task.Path -TaskName $task.Name | Out-Null
+    $expectDrift = 3
+}
+Invoke-Script 'Win11-Debloat.ps1' @('-Check') 10
+$drift = Get-Content -LiteralPath (Join-Path $base 'drift.json') -Raw | ConvertFrom-Json
+Assert ($drift.Count -eq $expectDrift) "check found exactly the $expectDrift simulated changes (found $($drift.Count))"
+Assert ("$script:LastOut" -match 'AllowTelemetry: expected 0, found 3') 'check names the reset telemetry policy'
+Assert ("$script:LastOut" -match 'TurnOffWindowsCopilot: expected 1, found <missing>') 'check names the deleted Copilot policy'
+if ($task) { Assert ("$script:LastOut" -match 'task enabled again') 'check names the re-enabled task' }
+
+Invoke-Script 'Win11-Debloat.ps1' @('-Reapply') 0
+Assert ((Get-Val $telemetry 'AllowTelemetry') -eq '0') 'reapply set AllowTelemetry back to 0'
+Assert ((Get-Val $copilot 'TurnOffWindowsCopilot') -eq '1') 'reapply set TurnOffWindowsCopilot back to 1'
+if ($task) { Assert ((Get-ScheduledTask -TaskPath $task.Path -TaskName $task.Name).State -eq 'Disabled') 'reapply disabled the task again' }
+Assert ("$script:LastOut" -notmatch 'restore point created') 'reapply made no new restore point'
+Invoke-Script 'Win11-Debloat.ps1' @('-Check') 0
+Assert ("$script:LastOut" -match 'all in place') 'check after reapply: all in place'
+Invoke-Script 'Win11-Debloat.ps1' @('-Reapply') 0
+Assert ("$script:LastOut" -match 'all in place') 'reapply without drift changes nothing'
+
+Invoke-Script 'Win11-Debloat.ps1' @('-InstallGuard') 0
+$gt = Get-ScheduledTask -TaskPath '\' -TaskName $guardTask -ErrorAction SilentlyContinue
+Assert ($null -ne $gt) 'guard task registered'
+if ($gt) {
+    Assert ($gt.Principal.RunLevel -eq 'Highest') 'guard runs with highest privileges'
+    Assert (@($gt.Triggers | Where-Object { $_.CimClass.CimClassName -eq 'MSFT_TaskLogonTrigger' }).Count -eq 1) 'guard triggers at sign-in'
+    Assert ($gt.Actions[0].Arguments -match [regex]::Escape($guardDir) -and $gt.Actions[0].Arguments -match '-Reapply') 'guard runs -Reapply from Program Files'
+}
+$copy = Join-Path $guardDir 'Win11-Debloat.ps1'
+Assert ((Test-Path $copy) -and (Get-FileHash $copy).Hash -eq (Get-FileHash (Join-Path $root 'Win11-Debloat.ps1')).Hash) 'guard copy is identical to the repository script'
+
+# Drift again, then let the scheduled task itself fix it.
+Set-ItemProperty -LiteralPath $telemetry -Name 'AllowTelemetry' -Value 3 -Type DWord
+$logFile = Join-Path $base 'guard.log'
+$logBefore = if (Test-Path $logFile) { @(Get-Content $logFile).Count } else { 0 }
+$guardRan = $false
+try { Start-ScheduledTask -TaskPath '\' -TaskName $guardTask } catch { Write-Host "Start-ScheduledTask: $($_.Exception.Message)" }
+for ($i = 0; $i -lt 60 -and -not $guardRan; $i++) {
+    Start-Sleep -Seconds 3
+    $lines = if (Test-Path $logFile) { @(Get-Content $logFile) } else { @() }
+    if ($lines.Count -gt $logBefore -and $lines[-1] -match 'reapplied') { $guardRan = $true }
+}
+$info = Get-ScheduledTaskInfo -TaskPath '\' -TaskName $guardTask -ErrorAction SilentlyContinue
+Write-Host ("guard task: ran={0}, last result={1}" -f $guardRan, $(if ($info) { $info.LastTaskResult } else { '?' }))
+if ($guardRan) {
+    Assert ((Get-Val $telemetry 'AllowTelemetry') -eq '0') 'the guard task fixed the drift by itself'
+    $script:GuardNote = 'the scheduled task itself fixed a simulated drift'
+} else {
+    # Interactive-logon tasks may not start on a CI session; run its exact command line instead.
+    Write-Host "::warning title=Guard::scheduled task did not start on this CI session (last result $(if ($info) { $info.LastTaskResult }))"
+    & $gt.Actions[0].Execute -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $copy -Reapply | Out-Host
+    Assert ((Get-Val $telemetry 'AllowTelemetry') -eq '0') "the guard's command line fixed the drift"
+    $script:GuardNote = "the guard's command line fixed a simulated drift (task start not available on CI)"
+}
+Assert ((@(Get-Content $logFile)[-1]) -match 'drift 1 -> reapplied') 'guard.log records the fix'
+
+# ---------------------------------------------------------------- 4. repeat run
 Invoke-Script 'Win11-Debloat.ps1' @('-SkipRestorePoint', '-KeepEdge', '-Force')
 foreach ($c in $checks) {
     $k = "$($c.Path)|$($c.Name)"
     Assert ((Get-Val $c.Path $c.Name) -eq $c.Want) "repeat run kept $k"
 }
 
-# ---------------------------------------------------------------- 4. restore
+# ---------------------------------------------------------------- 5. restore
 Invoke-Script 'Win11-Restore.ps1' @()
 foreach ($c in $checks) {
     $k = "$($c.Path)|$($c.Name)"
@@ -108,6 +194,11 @@ $pending = @(Get-ChildItem $base -Recurse -Filter 'undo.json' -ErrorAction Silen
 $done    = @(Get-ChildItem $base -Recurse -Filter 'undo.restored.json' -ErrorAction SilentlyContinue)
 Assert ($pending.Count -eq 0) "no pending manifests after restore (found $($pending.Count))"
 Assert ($done.Count -ge 1) "restored manifests renamed (found $($done.Count))"
+Assert ($null -eq (Get-ScheduledTask -TaskPath '\' -TaskName $guardTask -ErrorAction SilentlyContinue)) 'restore removed the guard task'
+Assert (-not (Test-Path -LiteralPath $guardDir)) 'restore removed the guard copy in Program Files'
+Assert (-not (Test-Path -LiteralPath $state)) 'restore removed state.json'
+Invoke-Script 'Win11-Debloat.ps1' @('-Check') 2
+Assert $true 'check after restore: nothing applied (exit 2)'
 
 # ---------------------------------------------------------------- result
 Write-Host ""
@@ -117,7 +208,7 @@ if ($failures.Count -gt 0) {
 }
 Write-Host 'All round-trip checks passed' -ForegroundColor Green
 if ($env:GITHUB_ACTIONS) {
-    Write-Host ("::notice title=Windows round trip::{0} checks passed on Windows build {1}. First run changed {2}. Dry run changed nothing, restore put every checked value back." -f `
-        $script:Passed, [Environment]::OSVersion.Version.Build, $firstRun)
+    Write-Host ("::notice title=Windows round trip::{0} checks passed on Windows build {1}. First run changed {2}. Check found every simulated drift, -Reapply fixed it, {3}. Dry run changed nothing, restore put every checked value back and removed the guard." -f `
+        $script:Passed, [Environment]::OSVersion.Version.Build, $firstRun, $script:GuardNote)
 }
 exit 0
