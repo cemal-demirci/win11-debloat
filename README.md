@@ -1,111 +1,124 @@
 # Windows 11 Debloat · Cemal.cloud
 
-Windows 11'deki reklamları, Copilot'u ve telemetriyi tek tıkla kapatan küçük bir uygulama. Yaptığı her değişikliği kaydeder, beğenmezseniz tek tıkla geri alırsınız.
+[![Sürüm](https://img.shields.io/github/v/release/cemal-demirci/win11-debloat?label=s%C3%BCr%C3%BCm&color=e3b341)](https://github.com/cemal-demirci/win11-debloat/releases)
+[![Lisans: MIT](https://img.shields.io/badge/lisans-MIT-blue)](LICENSE)
+[![Denetim](https://github.com/cemal-demirci/win11-debloat/actions/workflows/ci.yml/badge.svg)](https://github.com/cemal-demirci/win11-debloat/actions)
+![Windows 11](https://img.shields.io/badge/Windows-11-0078D4)
 
-[![ci](https://github.com/cemal-demirci/win11-debloat/actions/workflows/ci.yml/badge.svg)](https://github.com/cemal-demirci/win11-debloat/actions/workflows/ci.yml)
-![license](https://img.shields.io/badge/license-MIT-blue)
+**Windows 11'i reklam panosu olmaktan çıkarın. Tek tıkla, istediğiniz an geri alınabilir şekilde.**
 
-## Neden?
+Sıfır kurulmuş bir Windows 11 açılır açılmaz Başlat menüsünde kurmadığınız uygulamalar, görev çubuğunda Copilot,
+kilit ekranında "öneriler", arka planda da Microsoft'a giden telemetri ile gelir. Bir kısmı Ayarlar'da hiç yoktur,
+bir kısmı ilk büyük güncellemede geri açılır.
 
-Sıfır kurulmuş bir Windows 11 bile Copilot, Recall, Başlat menüsünde reklamlar, kendiliğinden kurulan uygulamalar, Xbox servisleri ve Microsoft'a giden telemetri ile gelir. Bunların bir kısmı Ayarlar'da hiç yoktur, bir kısmı da büyük güncellemelerden sonra geri açılır.
+Temizlemek kolaydır; zor olan geri dönmektir. Bu yüzden Win11 Debloat **yaptığı her değişikliği kaydeder**:
 
-Bu uygulama hepsini tek seferde kapatır. Diğer debloat araçlarından farkı, neyi değiştirdiğini kaydetmesidir. Pişman olursanız her şey geri alınabilir.
+- başlamadan önce bir **sistem geri yükleme noktası** oluşturur,
+- değiştirdiği her registry değerinin **eski halini** `undo.json`'a yazar,
+- beğenmezseniz **Geri al** butonu her şeyi eski haline döndürür.
 
-## Hızlı başlangıç
+116 KB'lık tek bir uygulamadır, kurulum gerekmez. Arka planda bu repodaki PowerShell scriptlerini çalıştırır ve ne
+yaptığını canlı olarak gösterir.
 
-[**Releases**](https://github.com/cemal-demirci/win11-debloat/releases/latest) sayfasından `Win11-Debloat.exe` dosyasını indirip çalıştırın. Kurulum gerekmez, yönetici izni ister.
+## İndirme ve kullanım
 
-1. Seçenekleri işaretleyin. Hepsi varsayılan olarak açıktır, kullandığınız şeylerin (Edge, Xbox, Spotify...) işaretini kaldırın.
+[**Releases**](https://github.com/cemal-demirci/win11-debloat/releases/latest) sayfasından `Win11-Debloat.exe`'yi indirin
+ve çalıştırın. Yönetici izni ister.
+
+1. Kullandıklarınızın (Edge, Xbox, Spotify...) işaretini kaldırın.
 2. **Önizle** ile nelerin değişeceğine bakın. Bu adımda hiçbir şey değişmez.
 3. **Uygula**'ya basın, bitince bilgisayarı yeniden başlatın.
 4. Beğenmezseniz **Geri al**.
 
-> Uygulama imzasız olduğu için Windows "Bilgisayarınız korundu" uyarısı gösterebilir: **Ek bilgi → Yine de çalıştır**. İndirdiğiniz dosyayı Releases sayfasındaki `SHA256SUMS.txt` ile doğrulayabilirsiniz.
+> Uygulama imzasız olduğu için Windows "Bilgisayarınız korundu" uyarısı gösterebilir: **Ek bilgi → Yine de çalıştır**.
+> İndirdiğiniz dosyayı Releases sayfasındaki `SHA256SUMS.txt` ile doğrulayabilirsiniz.
 
-Uygulama, bu repodaki PowerShell scriptlerini içinde taşır ve onları çalıştırır. Kendi başına başka bir işlem yapmaz, ne çalıştırdığını alttaki kayıt penceresinde görürsünüz.
-
-### PowerShell ile
-
-Uygulama yerine scriptleri doğrudan kullanmak isterseniz, PowerShell'i **yönetici olarak** açın:
+Uygulama yerine scriptleri doğrudan kullanmak isterseniz, yönetici PowerShell'de:
 
 ```powershell
 irm https://raw.githubusercontent.com/cemal-demirci/win11-debloat/main/Win11-Debloat.ps1 -OutFile Win11-Debloat.ps1
 irm https://raw.githubusercontent.com/cemal-demirci/win11-debloat/main/Win11-Restore.ps1 -OutFile Win11-Restore.ps1
 
-powershell -ExecutionPolicy Bypass -File .\Win11-Debloat.ps1 -DryRun   # ne yapacağını gör
+powershell -ExecutionPolicy Bypass -File .\Win11-Debloat.ps1 -DryRun   # önizle
 powershell -ExecutionPolicy Bypass -File .\Win11-Debloat.ps1           # uygula
+powershell -ExecutionPolicy Bypass -File .\Win11-Restore.ps1           # geri al
 ```
 
-Ayarlar, çalıştıran kullanıcıya uygulanır. Temizlemek istediğiniz hesapla (yönetici olmalı) çalıştırın.
+## Elle mi, Win11 Debloat ile mi?
+
+| | Ayarlar'dan elle | Win11 Debloat |
+|---|---|---|
+| Copilot ve Recall | Kısmen | ✅ Politika ile kapatılır |
+| Başlat önerileri, kilit ekranı reklamları, sessiz uygulama kurulumları | Tek tek, bir kısmı yok | ✅ |
+| Başlat aramasında Bing | Ayarlar'da yok | ✅ |
+| Ön yüklü uygulamalar | Tek tek, sadece sizin hesabınızdan | ✅ Tüm kullanıcılardan ve yeni hesaplardan |
+| Telemetri | "Gerekli" seviyesine kadar | ✅ Politika ile en düşük seviye |
+| Güncellemeden sonra | Baştan | Tekrar çalıştırın, sadece değişenler uygulanır |
+| Geri dönüş | Ne yaptığınızı hatırlamanız gerekir | ✅ Tek tık |
 
 ## Ne değişir?
 
 | | |
 |---|---|
 | **Kaldırılır** | Copilot, Microsoft 365 hub, Bing Haberler ve Hava Durumu, Get Started, Feedback Hub, Solitaire, To Do, Haritalar, Mail ve Takvim, Phone Link, Cortana, kişisel Teams, Clipchamp, Widgets, Xbox uygulamaları, yeni Outlook, OneDrive, Edge (Microsoft izin veriyorsa), Spotify ve Netflix gibi üretici ve tanıtım uygulamaları |
-| **Kapatılır** | Copilot ve Recall, Paint ve Not Defteri'ndeki yapay zeka özellikleri, telemetri ve reklam kimliği, Başlat menüsü önerileri ve reklamları, Başlat aramasında Bing, kilit ekranı reklamları, sessiz uygulama kurulumları, Game DVR |
+| **Kapatılır** | Copilot ve Recall, Paint ve Not Defteri'ndeki yapay zekâ özellikleri, telemetri ve reklam kimliği, Başlat önerileri ve reklamları, Başlat aramasında Bing, kilit ekranı reklamları, sessiz uygulama kurulumları, Game DVR |
 | **Ayarlanır** | Dosya uzantıları ve gizli dosyalar görünür, klasik sağ tık menüsü geri gelir, Explorer "Bu Bilgisayar" ile açılır |
 | **Dokunulmaz** | Microsoft Store, winget, Terminal, Fotoğraflar, Hesap Makinesi, Not Defteri, Paint, Ekran Alıntısı Aracı, iş Teams'i, klasik Outlook, WebView2, Windows Search, Get Help, Intune senkronizasyonu |
 
-> **Dikkat:** Spotify, Netflix gibi üçüncü parti uygulamalar **tüm kullanıcılardan, verileriyle birlikte** kaldırılır. Kullanıyorsanız `-KeepThirdParty` ekleyin.
+> **Dikkat:** Spotify, Netflix gibi üçüncü parti uygulamalar **tüm kullanıcılardan, verileriyle birlikte** kaldırılır.
+> Kullanıyorsanız uygulamada işaretini kaldırın (PowerShell'de `-KeepThirdParty`).
 
-## Nasıl güvenli kalıyor?
+Bazı durumlarda ilgili adım bilerek atlanır:
 
-Script hiçbir şeye dokunmadan önce:
+- OneDrive'da oturum açıksa ya da klasörleriniz OneDrive'a yedekleniyorsa **OneDrive kaldırılmaz**; bulutta duran
+  dosyalarınıza erişim kaybolmaz.
+- Başka bir tarayıcı kurulu değilse **Edge kaldırılmaz**.
+- Geri yükleme noktası oluşturulamazsa hiçbir şey değişmez; uygulama devam edip etmeyeceğinizi sorar.
 
-1. Bir **System Restore noktası** oluşturur. Oluşturamazsa durur.
-2. Etkilenen registry bölümlerini `.reg` dosyası olarak yedekler.
-3. Kurulu uygulamaların listesini kaydeder.
-4. Yaptığı her değişikliği `undo.json` dosyasına yazar.
+## Ne çalıştırır, nereye dokunur?
 
-Riskli durumlarda ilgili adımı atlar:
+- **Çalıştırdığı:** yalnızca bu repodaki `Win11-Debloat.ps1` ve `Win11-Restore.ps1`. Uygulamanın içindeki kopyaları
+  repodakilerle bayt bayt aynıdır (CI her derlemede kontrol eder).
+- **Yazdığı:** Windows ayarları (registry, servisler, zamanlanmış görevler) ve yedekler için
+  `%ProgramData%\CemalCloud\Win11Debloat\`.
+- **Ağ:** debloat hiçbir yere bağlanmaz. Yalnızca **Geri al**, kaldırılmış OneDrive ve Edge'i yeniden kurmak için winget kullanır.
+- **Kimin ayarları:** bilgisayar genelindeki ayarlar herkese, kişisel ayarlar uygulamayı çalıştıran hesaba uygulanır.
 
-- OneDrive'da oturum açıksa veya klasörleriniz OneDrive'a yedekleniyorsa OneDrive kaldırılmaz. Bulutta duran dosyalarınıza erişim kaybolmasın diye.
-- Başka bir tarayıcı kurulu değilse Edge kaldırılmaz.
-- Windows 11 değilse hiç çalışmaz.
+## Test ettik
 
-## Geri alma
+Her commit'te GitHub Actions üç ayrı testi **gerçek bir Windows'ta** çalıştırır (Windows Server 2025, Windows 11 24H2
+ile aynı çekirdek):
 
-Uygulamada **Geri al** butonuna basın ya da PowerShell ile:
+| Test | Sonuç (son çalıştırma) |
+|---|---|
+| Önizle → Uygula → tekrar Uygula → Geri al | 36 kontrol geçti. Uygulama 93 registry değerini değiştirdi, Geri al hepsini eski haline döndürdü. Önizleme hiçbir şeye dokunmadı. |
+| Uygulama, penceresiz | Gömülü scriptler repodakilerle aynı. 64-bit PowerShell kullanılıyor. Önizle, Uygula ve Geri al uygulama üzerinden sorunsuz. |
+| Uygulama, penceresiyle | Pencere açıldı, Edge'in işareti tıklamayla kaldırıldı, **Önizle**'ye basıldı. Script `-KeepEdge` ile çalıştı, sonuç pencerede göründü. |
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\Win11-Restore.ps1
-```
-
-Registry değerleri eski haline döner, kapatılan görevler açılır, OneDrive ve Edge winget ile yeniden kurulur. Kaldırılan Store uygulamaları listelenir, onları Store'dan tekrar kurabilirsiniz. Script'i birden fazla kez çalıştırdıysanız hepsi en yeniden eskiye doğru geri alınır.
-
-Tamamen geri dönmek için "Cemal.cloud Win11-Debloat" restore noktası da kullanılabilir. Yedekler `%ProgramData%\CemalCloud\Win11Debloat\` altında durur.
+Dürüst not: sunucu sürümünde Store uygulamaları, Edge kaldırma ve OneDrive olmadığı için bu kısımlar testin dışında
+kalıyor. İlk kullanımda bir sanal makinede **Önizle** ile başlayın.
 
 ## Seçenekler
 
-Uygulamadaki kutucuklar aşağıdaki parametrelere karşılık gelir. PowerShell ile kullanırken doğrudan yazabilirsiniz.
-
-| Parametre | Ne yapar |
-|---|---|
-| `-DryRun` | Hiçbir şeyi değiştirmez, yapılacakları listeler |
-| `-KeepEdge` | Edge kaldırılmaz (ayarları yine sadeleşir) |
-| `-KeepOneDrive` | OneDrive kaldırılmaz |
-| `-KeepXbox` | Xbox uygulamaları, servisleri ve Game Bar kalır |
-| `-KeepThirdParty` | Spotify, Netflix, Disney+ gibi üçüncü parti uygulamalar kalır |
-| `-KeepOutlookNew` | Yeni Outlook uygulaması kalır |
-| `-SkipUiTweaks` | Dosya uzantısı, sağ tık menüsü gibi arayüz ayarlarına dokunmaz |
-| `-SkipRestorePoint` | Restore noktası oluşturulamasa da devam eder |
-| `-Force` | Yukarıdaki güvenlik kontrollerini atlar, dikkatli kullanın |
+| Uygulamada | PowerShell'de | Ne yapar |
+|---|---|---|
+| Önizle | `-DryRun` | Hiçbir şeyi değiştirmez, yapılacakları listeler |
+| Edge'i kaldır (işaretsiz) | `-KeepEdge` | Edge kalır, ayarları yine sadeleşir |
+| OneDrive'ı kaldır (işaretsiz) | `-KeepOneDrive` | OneDrive kalır |
+| Xbox uygulamalarını kaldır (işaretsiz) | `-KeepXbox` | Xbox uygulamaları, servisleri ve Game Bar kalır |
+| Üçüncü parti uygulamaları kaldır (işaretsiz) | `-KeepThirdParty` | Spotify, Netflix, Disney+ gibi uygulamalar kalır |
+| Yeni Outlook'u kaldır (işaretsiz) | `-KeepOutlookNew` | Yeni Outlook kalır |
+| Arayüz ayarları (işaretsiz) | `-SkipUiTweaks` | Dosya uzantısı, sağ tık menüsü gibi ayarlara dokunmaz |
+| | `-SkipRestorePoint` | Geri yükleme noktası oluşturulamasa da devam eder |
+| | `-Force` | Güvenlik kontrollerini atlar, dikkatli kullanın |
 
 ## Bilmeniz gerekenler
 
-- **Telemetri:** En düşük seviye sadece Enterprise ve Education sürümlerinde tam geçerlidir. Pro ve Home'da Windows bunu "Gerekli" seviyesinde tutar.
-- **Edge:** Microsoft, Edge'in kaldırılmasına sadece bazı bölgelerde (AB) izin veriyor. Diğer bölgelerde Edge kalır ama arka plan özellikleri kapatılır.
-- **Büyük güncellemeler** bazı uygulamaları geri getirebilir. Script'i tekrar çalıştırmak güvenlidir.
-- **Şirket bilgisayarları:** Intune veya Group Policy ile yönetilen bir cihazda BT ekibinize sormadan çalıştırmayın.
-
-## Nasıl test ediliyor?
-
-Her değişiklikte GitHub Actions, script'i Windows Server 2025 üzerinde (Windows 11 24H2 ile aynı çekirdek) gerçekten çalıştırır ve şunları kontrol eder: `-DryRun` hiçbir şeyi değiştirmiyor, gerçek çalıştırma ayarları uyguluyor, ikinci çalıştırma sorun çıkarmıyor, restore her değeri eski haline döndürüyor.
-
-Uygulama da her değişiklikte derlenir. İçindeki scriptlerin bu repodakilerle birebir aynı olduğu doğrulanır, önizleme, uygulama ve geri alma uygulama üzerinden çalıştırılır. Pencere de arayüz otomasyonuyla açılıp bir kutucuk kaldırılır ve **Önizle**'ye basılarak denenir.
-
-Sunucu sürümünde olmayan masaüstü parçaları (Store uygulamaları, Edge kaldırma, OneDrive) bu testin dışında kalır. İlk kullanımda bir sanal makinede `-DryRun` ile denemenizi öneririz.
+- **Telemetri:** en düşük seviye yalnızca Enterprise ve Education sürümlerinde tam geçerlidir. Pro ve Home'da Windows
+  bunu "Gerekli" seviyesinde tutar.
+- **Edge:** Microsoft kaldırmaya yalnızca bazı bölgelerde (AB) izin verir. Diğer bölgelerde Edge kalır ama arka plan
+  özellikleri kapatılır.
+- **Şirket bilgisayarları:** Intune ya da Group Policy ile yönetilen bir cihazda BT ekibinize sormadan çalıştırmayın.
 
 ## Lisans
 
@@ -113,17 +126,19 @@ Sunucu sürümünde olmayan masaüstü parçaları (Store uygulamaları, Edge ka
 
 ---
 
-<details>
-<summary><b>English</b></summary>
+## English
 
-Reversible Windows 11 debloat as a small app (`Win11-Debloat.exe` on the Releases page: tick options, **Önizle** = preview, **Uygula** = apply, **Geri al** = restore) or as PowerShell scripts. It removes Copilot, Recall, Xbox, Widgets, OneDrive, Edge (where Microsoft allows it), ads, suggestions and telemetry. Before changing anything it creates a restore point, exports the affected registry hives and records every change in `undo.json`; `Win11-Restore.ps1` rolls all pending runs back, newest first. Store, winget, Terminal, WebView2, work Teams, classic Outlook, Windows Search, Get Help and the Intune sync service are kept on purpose.
+**Windows 11 Debloat** removes ads, Copilot, Recall, preinstalled apps and telemetry in one click, and records every
+change so it can be undone in one click. It is a 116 KB app (no install) that runs the PowerShell scripts in this
+repository and shows their output live.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\Win11-Debloat.ps1 -DryRun
-powershell -ExecutionPolicy Bypass -File .\Win11-Debloat.ps1 [-KeepEdge] [-KeepOneDrive] [-KeepXbox] [-KeepThirdParty]
-powershell -ExecutionPolicy Bypass -File .\Win11-Restore.ps1
-```
-
-CI runs a real dry run, debloat, repeat run and restore round trip on Windows Server 2025 for every commit. Desktop-only parts (Store apps, Edge removal, OneDrive) are not covered there; try `-DryRun` in a VM first.
-
-</details>
+- **Download:** `Win11-Debloat.exe` from [Releases](https://github.com/cemal-demirci/win11-debloat/releases/latest).
+  Untick what you use, press **Önizle** (preview), then **Uygula** (apply) and restart. **Geri al** (restore) undoes everything.
+- **Safety:** restore point, registry export and an undo manifest before any change. OneDrive is kept when it is signed
+  in, Edge is kept when no other browser is installed. Store, winget, Terminal, work Teams, classic Outlook, Windows
+  Search, Get Help and Intune sync are never touched.
+- **Scripts:** `Win11-Debloat.ps1 [-DryRun] [-KeepEdge] [-KeepOneDrive] [-KeepXbox] [-KeepThirdParty]`, `Win11-Restore.ps1`.
+- **Tested:** every commit runs a real preview / apply / repeat / restore round trip, the app headless and the app window
+  (UI clicks) on Windows Server 2025. Desktop-only parts (Store apps, Edge removal, OneDrive) are not covered there;
+  start with a preview in a VM.
+- **License:** MIT.
