@@ -57,11 +57,16 @@ namespace CemalCloud.Win11Debloat
         {
             foreach (string n in names)
             {
-                // GDI+ silently substitutes a missing family, so compare what we got back.
-                using (var f = new Font(n, 10f))
+                // GDI+ silently substitutes a missing family (so compare what we got back),
+                // and throws for families it cannot use, such as some variable fonts.
+                try
                 {
-                    if (string.Equals(f.Name, n, StringComparison.OrdinalIgnoreCase)) return n;
+                    using (var f = new Font(n, 10f))
+                    {
+                        if (string.Equals(f.Name, n, StringComparison.OrdinalIgnoreCase)) return n;
+                    }
                 }
+                catch (ArgumentException) { }
             }
             return names[names.Length - 1];
         }

@@ -6,6 +6,21 @@ namespace CemalCloud.Win11Debloat
 {
     internal static class Program
     {
+        /// <summary>Unexpected error: write it next to the extracted scripts and tell the user where.</summary>
+        private static void Crash(Exception ex)
+        {
+            string file = System.IO.Path.Combine(ScriptRunner.WorkDir, "crash.log");
+            try
+            {
+                System.IO.Directory.CreateDirectory(ScriptRunner.WorkDir);
+                System.IO.File.AppendAllText(file, DateTime.Now.ToString("s") + " v" + ScriptRunner.Version + "\r\n" + ex + "\r\n\r\n");
+            }
+            catch { }
+            if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != null) Environment.Exit(3);
+            MessageBox.Show("Beklenmeyen bir hata oluştu:\n\n" + (ex == null ? "?" : ex.Message) + "\n\nAyrıntılar: " + file,
+                            "Windows 11 Debloat", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+
         [STAThread]
         private static int Main(string[] args)
         {
@@ -24,7 +39,18 @@ namespace CemalCloud.Win11Debloat
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new MainForm());
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            Application.ThreadException += (s, e) => Crash(e.Exception);
+            AppDomain.CurrentDomain.UnhandledException += (s, e) => Crash(e.ExceptionObject as Exception);
+            try
+            {
+                Application.Run(new MainForm());
+            }
+            catch (Exception ex)
+            {
+                Crash(ex);
+                return 1;
+            }
             return 0;
         }
     }

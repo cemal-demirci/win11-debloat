@@ -72,6 +72,8 @@ function Write-Diag([string]$What) {
         $script:proc.Refresh()
         $msg += ", app exited=$($script:proc.HasExited), window='$($script:proc.MainWindowTitle)'"
     }
+    $crash = Join-Path $env:TEMP 'CemalCloud\Win11Debloat\crash.log'
+    if (Test-Path $crash) { $msg += " | crash.log: " + ((Get-Content $crash -TotalCount 12) -join ' / ') }
     Write-Host $msg
     if ($env:GITHUB_ACTIONS) {
         # workflow commands are single-line: escape % CR LF
