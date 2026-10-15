@@ -20,7 +20,7 @@ Temizlemek kolaydır; zor olan geri dönmektir. Bu yüzden Win11 Debloat **yapt�
 Neyi uyguladığını da kaydettiği için, bir Windows güncellemesi sonrası **neyin geri döndüğünü** tek tek söyleyebilir
 ve yalnızca onları düzeltir. İsterseniz bunu her oturum açışta kendisi yapar.
 
-116 KB'lık tek bir uygulamadır, kurulum gerekmez. Arka planda bu repodaki PowerShell scriptlerini çalıştırır ve ne
+137 KB'lık tek bir uygulamadır, kurulum gerekmez. Arka planda bu repodaki PowerShell scriptlerini çalıştırır ve ne
 yaptığını canlı olarak gösterir.
 
 ## İndirme ve kullanım
@@ -73,7 +73,7 @@ tahmin etmez, karşılaştırır:
 | | Ne yapar |
 |---|---|
 | **Kontrol et** | Son uygulamadan beri değişen registry değerlerini, yeniden açılan zamanlanmış görevleri, geri gelen uygulamaları, yeniden kurulan Edge ve OneDrive'ı listeler. Hiçbir şeyi değiştirmez. Uygulama her açılışta bu kontrolü kendisi de yapar. |
-| **Yeniden uygula** | Yalnızca geri dönenleri, son seferki seçeneklerinizle tekrar uygular. Her değişiklik yine kaydedilir, **Geri al** bunları da geri alır. |
+| **Düzeltme** | **Kontrol et** bir şey bulursa sorar ve yalnızca geri dönenleri, son seferki seçeneklerinizle tekrar uygular. Her değişiklik yine kaydedilir, **Geri al** bunları da geri alır. |
 | **Nöbetçi** | Her oturum açışınızdan 2 dakika sonra kontrol eder. Bir şey geri dönmüşse düzeltir ve `guard.log`'a yazar, dönmemişse hiçbir şey yapmaz. |
 
 Nöbetçi, yönetici yetkisiyle çalışan bir zamanlanmış görevdir ("Cemal.cloud Win11 Debloat Guard"). Çalıştırdığı
@@ -159,7 +159,7 @@ kalıyor. İlk kullanımda bir sanal makinede **Önizle** ile başlayın.
 ## English
 
 **Windows 11 Debloat** removes ads, Copilot, Recall, preinstalled apps and telemetry in one click, and records every
-change so it can be undone in one click. It is a 116 KB app (no install) that runs the PowerShell scripts in this
+change so it can be undone in one click. It is a 137 KB app (no install) that runs the PowerShell scripts in this
 repository and shows their output live.
 
 - **Download:** `Win11-Debloat.exe` from [Releases](https://github.com/cemal-demirci/win11-debloat/releases/latest).
