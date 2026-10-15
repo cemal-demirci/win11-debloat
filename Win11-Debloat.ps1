@@ -135,7 +135,7 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 $ProgressPreference    = 'SilentlyContinue'
 
-$ScriptVersion = '1.3.0'
+$ScriptVersion = '1.4.0'
 $Stamp     = Get-Date -Format 'yyyyMMdd-HHmmss'
 $BaseDir   = Join-Path $env:ProgramData 'CemalCloud\Win11Debloat'
 $BackupDir = Join-Path $BaseDir $Stamp

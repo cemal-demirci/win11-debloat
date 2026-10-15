@@ -1,0 +1,55 @@
+name: ekran görüntüsü
+
+# Builds the app on a real Windows, opens it like the window test does and
+# takes screenshots. "preview" pushes them to the screenshots branch for a
+# design review; "main" puts the preview shot into docs/app.png on main
+# (used by the README) and removes the screenshots branch.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'preview or main'
+        required: true
+        default: preview
+
+permissions:
+  contents: write
+
+jobs:
+  shots:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build
+        run: dotnet build app/Win11Debloat.csproj -c Release
+      - name: Open the app and take screenshots
+        shell: cmd
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests\ci-app-ui.ps1 -Exe app\bin\Release\net48\Win11-Debloat.exe -ShotDir shots
+      - name: Publish
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET: ${{ inputs.target }}
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          $R = $env:GITHUB_REPOSITORY
+          if ($env:TARGET -eq 'main') {
+            New-Item -ItemType Directory docs -Force | Out-Null
+            Copy-Item shots/preview.png docs/app.png -Force
+            git add docs/app.png
+            git diff --cached --quiet
+            if ($LASTEXITCODE -ne 0) { git commit -m 'docs: app screenshot'; git push origin HEAD:main }
+            gh api -X DELETE "repos/$R/git/refs/heads/screenshots" 2>$null
+            "::notice title=Screenshot::docs/app.png updated on main"
+          } else {
+            $d = Join-Path $env:RUNNER_TEMP 'shots-repo'
+            New-Item -ItemType Directory $d | Out-Null
+            Copy-Item shots/*.png $d
+            Set-Location $d
+            git init -q -b screenshots
+            git add .
+            git commit -q -m 'screenshots'
+            git push -q -f "https://x-access-token:$($env:GH_TOKEN)@github.com/$R.git" screenshots
+            "::notice title=Screenshot::$((Get-ChildItem *.png).Name -join ', ') pushed to the screenshots branch"
+          }

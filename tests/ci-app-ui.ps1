@@ -13,7 +13,7 @@
     and text reads go through the standard Win32 messages (BM_CLICK,
     BM_GETCHECK, WM_GETTEXT), which behave exactly like a mouse click.
 #>
-param([Parameter(Mandatory)][string]$Exe)
+param([Parameter(Mandatory)][string]$Exe, [string]$ShotDir)
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
@@ -29,7 +29,38 @@ public static extern bool PostMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPt
 public static extern bool IsWindowEnabled(IntPtr hWnd);
 [DllImport("user32.dll")]
 public static extern bool SetForegroundWindow(IntPtr hWnd);
+[DllImport("user32.dll")]
+public static extern bool PrintWindow(IntPtr hWnd, IntPtr hdc, uint flags);
+[DllImport("user32.dll")]
+public static extern bool GetWindowRect(IntPtr hWnd, out RECT r);
+[DllImport("dwmapi.dll")]
+public static extern int DwmGetWindowAttribute(IntPtr hWnd, int attr, out RECT r, int size);
+[StructLayout(LayoutKind.Sequential)]
+public struct RECT { public int Left, Top, Right, Bottom; }
 '@
+Add-Type -AssemblyName System.Drawing
+
+# Screenshot of a window as it is drawn (title bar included), for the README and design review.
+function Save-Shot([IntPtr]$Hwnd, [string]$Name) {
+    if (-not $ShotDir) { return }
+    New-Item -ItemType Directory -Path $ShotDir -Force | Out-Null
+    Start-Sleep -Milliseconds 700
+    $r = New-Object CemalCloud.Win32+RECT
+    [void][CemalCloud.Win32]::GetWindowRect($Hwnd, [ref]$r)
+    $bmp = New-Object System.Drawing.Bitmap ($r.Right - $r.Left), ($r.Bottom - $r.Top)
+    $g = [System.Drawing.Graphics]::FromImage($bmp)
+    $hdc = $g.GetHdc()
+    [void][CemalCloud.Win32]::PrintWindow($Hwnd, $hdc, 2)      # PW_RENDERFULLCONTENT
+    $g.ReleaseHdc($hdc); $g.Dispose()
+    $e = New-Object CemalCloud.Win32+RECT
+    if ([CemalCloud.Win32]::DwmGetWindowAttribute($Hwnd, 9, [ref]$e, 16) -eq 0) {   # visible frame, without the invisible resize border
+        $crop = New-Object System.Drawing.Rectangle ($e.Left - $r.Left), ($e.Top - $r.Top), ($e.Right - $e.Left), ($e.Bottom - $e.Top)
+        $c = $bmp.Clone($crop, $bmp.PixelFormat); $bmp.Dispose(); $bmp = $c
+    }
+    $path = Join-Path $ShotDir "$Name.png"
+    $bmp.Save($path, [System.Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()
+    Write-Host "screenshot: $path"
+}
 $AE = [System.Windows.Automation.AutomationElement]
 $TS = [System.Windows.Automation.TreeScope]
 $W  = [CemalCloud.Win32]
@@ -106,6 +137,7 @@ $main = $script:proc.MainWindowHandle
 [void]$W::SetForegroundWindow($main)
 Write-Host "window: $($win.Current.Name)"
 Check ($win.Current.Name -like 'Windows 11 Debloat*Cemal.cloud') 'window title'
+Save-Shot $main 'start'
 
 # ---------------------------------------------------------------- controls
 # (ASCII-only patterns: this file is read by Windows PowerShell 5.1 without a BOM)
@@ -150,6 +182,7 @@ while ((Get-Date) -lt $deadline) {
     if ($text -match 'Summary' -and $W::IsWindowEnabled($btnPreview)) { break }
     Start-Sleep -Seconds 2
 }
+Save-Shot $main 'preview'
 Write-Host '----- log shown in the window -----'
 Write-Host $text
 Write-Host '-----------------------------------'
@@ -186,6 +219,7 @@ Write-Host "status: $status"
 Write-Host $log2
 Check ($status -match '[0-9]+ de.*geri alm') "the window found the drift by itself on start (status: $status)"
 Check ($log2 -match 'AllowTelemetry: expected 0, found 3') 'the log names the changed policy'
+Save-Shot $main 'drift'
 [void]$W::PostMessage($main, $WM_CLOSE, [IntPtr]::Zero, [IntPtr]::Zero)
 Check ($script:proc.WaitForExit(15000)) 'second window closes'
 $p = Start-Process -FilePath $Exe -ArgumentList '--run', (Join-Path $work 'restore.log'), 'restore' -Wait -PassThru

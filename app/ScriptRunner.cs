@@ -62,6 +62,20 @@ namespace CemalCloud.Win11Debloat
             }
         }
 
+        /// <summary>When the last run applied its settings ("15 Eki 06:20"), or null.</summary>
+        public static string LastRunTime()
+        {
+            try
+            {
+                string json = File.ReadAllText(Path.Combine(BackupDir, "state.json"));
+                var m = System.Text.RegularExpressions.Regex.Match(json, "\"Time\"\\s*:\\s*\"([0-9: -]+)\"");
+                if (!m.Success) return null;
+                DateTime t = DateTime.ParseExact(m.Groups[1].Value, "yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+                return t.ToString("d MMM HH:mm", new System.Globalization.CultureInfo("tr-TR"));
+            }
+            catch { return null; }
+        }
+
         /// <summary>Number of drifted items from the last -Check (drift.json), or -1.</summary>
         public static int LastDriftCount()
         {
