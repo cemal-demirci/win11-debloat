@@ -31,8 +31,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TARGET: ${{ inputs.target }}
         run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          # Commit as the person who started the run, not as a bot.
+          git config --global user.name '${{ github.actor }}'
+          git config --global user.email '${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com'
           $R = $env:GITHUB_REPOSITORY
           if ($env:TARGET -eq 'main') {
             New-Item -ItemType Directory docs -Force | Out-Null
