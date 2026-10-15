@@ -25,7 +25,7 @@ namespace CemalCloud.Win11Debloat
         public static readonly Color Dry = Hex(0xA99CFF);        // preview lines
         public static readonly Color LogBg = Hex(0x12151A);
         public static readonly Color LogText = Hex(0xC3CAD5);
-        public static readonly Color ToggleOff = Hex(0x3A414D);
+        public static readonly Color ToggleOff = Hex(0x9AA4B4);   // outline and knob of a switch that is off
 
         private static string uiFamily, displayFamily, monoFamily;
 

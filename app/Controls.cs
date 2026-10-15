@@ -19,6 +19,7 @@ namespace CemalCloud.Win11Debloat
     internal sealed class ToggleSwitch : CheckBox
     {
         private float pos;                       // 0 = off, 1 = on (animated)
+        private bool hover;
         private readonly Timer anim = new Timer { Interval = 15 };
 
         public ToggleSwitch()
@@ -26,7 +27,8 @@ namespace CemalCloud.Win11Debloat
             SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint |
                      ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
             AutoSize = false;
-            Size = new Size(46, 26);
+            Size = new Size(48, 28);
+            BackColor = Theme.Surface;           // the row sets this while the mouse is over it
             Cursor = Cursors.Hand;
             anim.Tick += (s, e) =>
             {
@@ -51,24 +53,34 @@ namespace CemalCloud.Win11Debloat
         }
 
         protected override void OnEnabledChanged(EventArgs e) { base.OnEnabledChanged(e); Invalidate(); }
+        protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { hover = false; Invalidate(); base.OnMouseLeave(e); }
+        protected override void OnBackColorChanged(EventArgs e) { base.OnBackColorChanged(e); Invalidate(); }
 
         protected override void OnPaint(PaintEventArgs e)
         {
             Graphics g = e.Graphics;
-            g.Clear(Parent != null ? Parent.BackColor : Theme.Surface);
+            g.Clear(BackColor);
             g.SmoothingMode = SmoothingMode.AntiAlias;
             float s = DeviceDpi / 96f;
-            var track = new RectangleF(3 * s, 4 * s, Width - 6 * s, Height - 8 * s);
+            var track = new RectangleF(4 * s, 5 * s, Width - 8 * s, Height - 10 * s);
             float a = Enabled ? 1f : 0.4f;
+            Color off = hover ? Theme.Text : Theme.ToggleOff;
 
+            // Off: outlined track, light knob (as in Windows 11). On: filled accent, dark knob.
             using (var path = Theme.Round(track, track.Height / 2))
-            using (var b = new SolidBrush(Theme.Fade(Theme.Mix(Theme.ToggleOff, Theme.Accent, pos), a)))
-                g.FillPath(b, path);
+            {
+                if (pos > 0)
+                    using (var b = new SolidBrush(Theme.Fade(hover ? Theme.AccentHover : Theme.Accent, a * pos))) g.FillPath(b, path);
+                if (pos < 1)
+                    using (var p = new Pen(Theme.Fade(off, a * (1 - pos)), 1.5f * s)) g.DrawPath(p, path);
+            }
 
-            float d = track.Height - 6 * s;
-            float x = track.X + 3 * s + (track.Width - d - 6 * s) * pos;
-            using (var b = new SolidBrush(Theme.Fade(Theme.Mix(Theme.Hex(0xC9CFD8), Theme.OnAccent, pos), a)))
-                g.FillEllipse(b, x, track.Y + 3 * s, d, d);
+            float d = track.Height - (pos > 0.5f ? 8 : 9) * s;
+            float pad = (track.Height - d) / 2;
+            float x = track.X + pad + (track.Width - d - 2 * pad) * pos;
+            using (var b = new SolidBrush(Theme.Fade(Theme.Mix(off, Theme.OnAccent, pos), a)))
+                g.FillEllipse(b, x, track.Y + pad, d, d);
 
             if (Focused && ShowFocusCues)
             {
@@ -203,8 +215,8 @@ namespace CemalCloud.Win11Debloat
             };
             Controls.Add(Switch);
             Switch.EnabledChanged += (s, e) => Invalidate();
-            Switch.MouseEnter += (s, e) => { hover = true; Invalidate(); };
-            Switch.MouseLeave += (s, e) => { hover = ClientRectangle.Contains(PointToClient(MousePosition)); Invalidate(); };
+            Switch.MouseEnter += (s, e) => SetHover(true);
+            Switch.MouseLeave += (s, e) => SetHover(ClientRectangle.Contains(PointToClient(MousePosition)));
         }
 
         protected override void OnLayout(LayoutEventArgs e)
@@ -214,8 +226,16 @@ namespace CemalCloud.Win11Debloat
             Switch.Location = new Point(Width - Switch.Width - (int)(12 * DeviceDpi / 96f), (Height - Switch.Height) / 2);
         }
 
-        protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
-        protected override void OnMouseLeave(EventArgs e) { hover = false; Invalidate(); base.OnMouseLeave(e); }
+        private void SetHover(bool on)
+        {
+            hover = on;
+            // The switch paints its own background: match the row so no box shows around it.
+            Switch.BackColor = on && Switch.Enabled ? Theme.SurfaceHover : Theme.Surface;
+            Invalidate();
+        }
+
+        protected override void OnMouseEnter(EventArgs e) { SetHover(true); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { SetHover(ClientRectangle.Contains(PointToClient(MousePosition))); base.OnMouseLeave(e); }
 
         protected override void OnClick(EventArgs e)
         {
@@ -235,6 +255,7 @@ namespace CemalCloud.Win11Debloat
                 using (var b = new SolidBrush(Theme.SurfaceHover))
                     g.FillPath(b, path);
             }
+            else if (Switch.BackColor != Theme.Surface) Switch.BackColor = Theme.Surface;
             float a = Switch.Enabled ? 1f : 0.5f;
             int left = (int)(16 * s), right = Switch.Left - (int)(12 * s);
             int th = titleFont.Height, dh = detailFont.Height, top = (Height - th - dh - (int)(2 * s)) / 2;

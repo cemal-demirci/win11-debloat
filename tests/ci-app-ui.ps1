@@ -37,6 +37,10 @@ public static extern bool GetWindowRect(IntPtr hWnd, out RECT r);
 public static extern int DwmGetWindowAttribute(IntPtr hWnd, int attr, out RECT r, int size);
 [StructLayout(LayoutKind.Sequential)]
 public struct RECT { public int Left, Top, Right, Bottom; }
+[DllImport("user32.dll")]
+public static extern bool SetCursorPos(int x, int y);
+[DllImport("user32.dll")]
+public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extra);
 '@
 Add-Type -AssemblyName System.Drawing
 $script:Shots = $ShotDir
@@ -165,6 +169,28 @@ Check ($W::SendMessage($chkGuard, $BM_GETCHECK, [IntPtr]::Zero, [IntPtr]::Zero).
 foreach ($c in $chkEdge, $chkOneDrive, $chkXbox, $chkOutlook, $chkThird, $chkUi, $chkPerf) {
     Check ($W::SendMessage($c, $BM_GETCHECK, [IntPtr]::Zero, [IntPtr]::Zero).ToInt32() -eq 1) "option $c is ticked by default"
 }
+# ---------------------------------------------------------------- real mouse on a switch
+function Invoke-MouseClick([int]$X, [int]$Y) {
+    [void]$W::SetCursorPos($X, $Y); Start-Sleep -Milliseconds 200
+    $W::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero); Start-Sleep -Milliseconds 80     # left down
+    $W::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero); Start-Sleep -Milliseconds 500    # left up
+}
+function Get-Checked([IntPtr]$H) { $W::SendMessage($H, $BM_GETCHECK, [IntPtr]::Zero, [IntPtr]::Zero).ToInt32() }
+[void]$W::SetForegroundWindow($main); Start-Sleep -Milliseconds 300
+$gr = New-Object CemalCloud.Win32+RECT
+[void][CemalCloud.Win32]::GetWindowRect($chkGaming, [ref]$gr)
+$cx = [int](($gr.Left + $gr.Right) / 2); $cy = [int](($gr.Top + $gr.Bottom) / 2)
+Invoke-MouseClick $cx $cy
+Check ((Get-Checked $chkGaming) -eq 1) 'a real mouse click turns the gaming switch on (once)'
+Invoke-MouseClick $cx $cy
+Check ((Get-Checked $chkGaming) -eq 0) 'a second click turns it off again'
+Invoke-MouseClick ($gr.Left - 220) $cy
+Check ((Get-Checked $chkGaming) -eq 1) 'clicking the row text turns the switch on too'
+Save-Shot $main 'hover'
+Invoke-MouseClick ($gr.Left - 220) $cy
+Check ((Get-Checked $chkGaming) -eq 0) 'and off again'
+[void]$W::SetCursorPos(0, 0)
+
 foreach ($b in $btnPreview, $btnApply, $btnCheck, $btnRestore) {
     Check ($W::IsWindowEnabled($b)) "button $b is enabled"
 }

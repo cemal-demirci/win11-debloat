@@ -18,6 +18,7 @@ namespace CemalCloud.Win11Debloat
         private readonly ActivityLine activity;
         private readonly Header header;
         private readonly RichTextBox txtLog;
+        private readonly TableLayoutPanel body;
         private readonly ToolTip tips = new ToolTip { AutoPopDelay = 20000, InitialDelay = 400, OwnerDraw = true };
         private readonly Font tipFont = Theme.Ui(9f);
 
@@ -162,7 +163,7 @@ namespace CemalCloud.Win11Debloat
             right.Controls.Add(lblStatus);
             right.Controls.Add(actions);
 
-            var body = new TableLayoutPanel
+            body = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
@@ -207,6 +208,8 @@ namespace CemalCloud.Win11Debloat
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
+            // Absolute TableLayoutPanel columns are not scaled with the rest at 125 % / 150 %.
+            body.ColumnStyles[0].Width = 404f * DeviceDpi / 96f;
             // Small screens / high scaling: never open taller or wider than the work area.
             Rectangle wa = Screen.FromControl(this).WorkingArea;
             if (Height > wa.Height) Height = wa.Height;
@@ -461,7 +464,12 @@ namespace CemalCloud.Win11Debloat
         {
             if (syncingGuard || running != null) return;
             // Not applied yet: the guard is installed together with "Uygula".
-            if (!ScriptRunner.StateExists) return;
+            if (!ScriptRunner.StateExists)
+            {
+                lblStatus.Text = chkGuard.Checked ? "Nöbetçi, \"Uygula\" ile birlikte kurulacak" : "Hazır";
+                lblStatus.ForeColor = chkGuard.Checked ? Theme.Info : Theme.Muted;
+                return;
+            }
             if (chkGuard.Checked != ScriptRunner.GuardInstalled)
                 Run(chkGuard.Checked ? Mode.GuardInstall : Mode.GuardRemove, false, false);
         }
