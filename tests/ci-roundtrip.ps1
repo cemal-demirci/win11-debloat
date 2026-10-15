@@ -114,6 +114,9 @@ Invoke-Script 'Win11-Debloat.ps1' @('-Check') 0
 Assert ("$script:LastOut" -match 'all in place') 'check right after the run: all in place'
 
 # Simulate what a feature update does: policy reset, policy deleted, task enabled again.
+# Restore undoes what the tool did. A value that was already right before the first
+# run and was then changed by "Windows" ends up as Windows left it, not as before.
+$simulated = @{ "$telemetry|AllowTelemetry" = '3' }
 Set-ItemProperty -LiteralPath $telemetry -Name 'AllowTelemetry' -Value 3 -Type DWord
 Remove-ItemProperty -LiteralPath $copilot -Name 'TurnOffWindowsCopilot'
 $expectDrift = 2
@@ -188,7 +191,9 @@ Invoke-Script 'Win11-Restore.ps1' @()
 foreach ($c in $checks) {
     $k = "$($c.Path)|$($c.Name)"
     $now = Get-Val $c.Path $c.Name
-    Assert ($now -eq $before[$k]) "restore put back $k = [$($before[$k])] (got [$now])"
+    $want = $before[$k]
+    if ($simulated.ContainsKey($k) -and $before[$k] -eq $c.Want) { $want = $simulated[$k] }
+    Assert ($now -eq $want) "restore put back $k = [$want] (got [$now])"
 }
 $pending = @(Get-ChildItem $base -Recurse -Filter 'undo.json' -ErrorAction SilentlyContinue)
 $done    = @(Get-ChildItem $base -Recurse -Filter 'undo.restored.json' -ErrorAction SilentlyContinue)

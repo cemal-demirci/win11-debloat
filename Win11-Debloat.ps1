@@ -361,7 +361,9 @@ function Protect-Dir([string]$Path) {
             $id = New-Object System.Security.Principal.SecurityIdentifier($rule[0])
             $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($id, $rule[1], $inh, $none, 'Allow')))
         }
-        Set-Acl -LiteralPath $Path -AclObject $acl
+        # .NET writes only the parts that were set (here: the DACL). Set-Acl would
+        # also write an empty owner / DACL from a second object and undo this.
+        [System.IO.Directory]::SetAccessControl($Path, $acl)
     } catch {
         Write-Warn2 "could not restrict permissions on ${Path}: $($_.Exception.Message)"
         return
@@ -370,7 +372,7 @@ function Protect-Dir([string]$Path) {
         # A folder someone else created first must not stay theirs.
         $o = New-Object System.Security.AccessControl.DirectorySecurity
         $o.SetOwner((New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-544')))
-        Set-Acl -LiteralPath $Path -AclObject $o
+        [System.IO.Directory]::SetAccessControl($Path, $o)
     } catch { }
 }
 
