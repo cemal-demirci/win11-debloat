@@ -11,7 +11,7 @@
     <Prefer32Bit>false</Prefer32Bit>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <Version>1.4.0</Version>
+    <Version>1.4.1</Version>
     <Company>Cemal.cloud</Company>
     <Product>Windows 11 Debloat</Product>
     <Description>Windows 11 Debloat by Cemal.cloud</Description>
