@@ -158,7 +158,7 @@ ile aynı çekirdek):
 
 | Test | Sonuç (son çalıştırma) |
 |---|---|
-| Önizle → Uygula (oyuncu ayarlarıyla) → Nöbetçi → tekrar Uygula → Geri al | 100 kontrol geçti. Uygulama 111 registry değerini değiştirdi ve performans güç planını açtı. Geri al hepsini, güç planı dahil, eski haline döndürdü. Önizleme hiçbir şeye dokunmadı. |
+| Önizle → Uygula (oyuncu ayarlarıyla) → Nöbetçi → tekrar Uygula → Geri al | 118 kontrol geçti. Uygulama 118 registry değerini değiştirdi ve performans güç planını açtı. Geri al hepsini, güç planı dahil, eski haline döndürdü. Önizleme hiçbir şeye dokunmadı. |
 | Windows güncellemesi taklidi | Telemetri politikası sıfırlandı, Copilot politikası silindi, bir görev yeniden açıldı. **Kontrol et** üçünü de buldu, **Yeniden uygula** düzeltti. Nöbetçi görevi kuruldu, yeni bir değişikliği kendi başına çalışıp düzeltti. |
 | Uygulama, penceresiz | Gömülü scriptler repodakilerle aynı. 64-bit PowerShell kullanılıyor. Önizle, Uygula, Kontrol et, Nöbetçi kur / kaldır ve Geri al uygulama üzerinden sorunsuz. |
 | Uygulama, penceresiyle | Pencere açıldı, Edge'in işareti tıklamayla kaldırıldı, **Önizle**'ye basıldı. Script `-KeepEdge` ile çalıştı, sonuç pencerede göründü. Bir politika geri değiştirildikten sonra açılan yeni pencere bunu kendiliğinden fark etti. |
@@ -226,7 +226,7 @@ repository and shows their output live.
   in, Edge is kept when no other browser is installed. Store, winget, Terminal, work Teams, classic Outlook, Windows
   Search, Get Help and Intune sync are never touched.
 - **Scripts:** `Win11-Debloat.ps1 [-DryRun] [-KeepEdge] [-KeepOneDrive] [-KeepXbox] [-KeepThirdParty]`, `Win11-Restore.ps1`.
-- **Tested:** every commit runs a real preview / apply / guard / repeat / restore round trip (100 checks, including a
+- **Tested:** every commit runs a real preview / apply / guard / repeat / restore round trip (118 checks, including a
   simulated feature update that the check finds and the guard task fixes by itself), the app headless and the app
   window (UI clicks, drift noticed on start) on Windows Server 2025. Desktop-only parts (Store apps, Edge removal, OneDrive) are not covered there;
   start with a preview in a VM.
