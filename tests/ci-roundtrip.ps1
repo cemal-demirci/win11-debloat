@@ -55,8 +55,17 @@ $checks = @(
     @{ Path = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile'; Name = 'SystemResponsiveness'; Want = '10' },
     @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl'; Name = 'Win32PrioritySeparation'; Want = '38' },
     @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem'; Name = 'NtfsDisableLastAccessUpdate'; Want = '-2147483647' },
-    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control'; Name = 'SvcHostSplitThresholdInKB'; Want = '2147483647' }
+    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control'; Name = 'SvcHostSplitThresholdInKB'; Want = '2147483647' },
+    # gaming (-GamingTweaks)
+    @{ Path = 'HKCU:\Control Panel\Mouse'; Name = 'MouseSpeed'; Want = '0' },
+    @{ Path = 'HKCU:\Control Panel\Mouse'; Name = 'MouseThreshold1'; Want = '0' },
+    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel'; Name = 'GlobalTimerResolutionRequests'; Want = '1' },
+    @{ Path = 'HKCU:\Software\Microsoft\GameBar'; Name = 'AutoGameModeEnabled'; Want = '1' }
 )
+# Sticky Keys: only the "shortcut active" bit (0x4) may change
+$sticky = 'HKCU:\Control Panel\Accessibility\StickyKeys'
+$stickyBefore = Get-Val $sticky 'Flags'
+$stickyWant = if ($stickyBefore -match '^\d+$') { [string]([int]$stickyBefore -band (-bnot 4)) } else { '506' }
 $perfScheme = 'c3c10ad0-0000-4c00-8000-0000000c10ad'
 function Get-Scheme {
     $prev = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
@@ -97,12 +106,14 @@ Assert ($manifests.Count -eq 0) 'dry run wrote no undo.json'
 # ---------------------------------------------------------------- 2. real run
 # -SkipRestorePoint: System Restore does not exist on Windows Server runners.
 # -KeepEdge: keep the CI image's browser; Edge policies are still applied.
-Invoke-Script 'Win11-Debloat.ps1' @('-SkipRestorePoint', '-KeepEdge', '-Force')
+Invoke-Script 'Win11-Debloat.ps1' @('-SkipRestorePoint', '-KeepEdge', '-GamingTweaks', '-Force')
 foreach ($c in $checks) {
     $k = "$($c.Path)|$($c.Name)"
     $now = Get-Val $c.Path $c.Name
     Assert ($now -eq $c.Want) "debloat set $k = [$($c.Want)] (got [$now])"
 }
+$stickyNow = Get-Val $sticky 'Flags'
+Assert ($stickyNow -eq $stickyWant) "Sticky Keys shortcut bit cleared, other bits kept ([$stickyBefore] -> [$stickyNow], want [$stickyWant])"
 $manifests = @(Get-ChildItem $base -Recurse -Filter 'undo.json')
 Assert ($manifests.Count -eq 1) "first run wrote one undo.json (found $($manifests.Count))"
 if ("$script:LastOut" -match 'does not allow a performance power plan|battery found') {
@@ -207,7 +218,7 @@ if ($guardRan) {
 Assert ((@(Get-Content $logFile)[-1]) -match 'drift 1 -> reapplied') 'guard.log records the fix'
 
 # ---------------------------------------------------------------- 4. repeat run
-Invoke-Script 'Win11-Debloat.ps1' @('-SkipRestorePoint', '-KeepEdge', '-Force')
+Invoke-Script 'Win11-Debloat.ps1' @('-SkipRestorePoint', '-KeepEdge', '-GamingTweaks', '-Force')
 foreach ($c in $checks) {
     $k = "$($c.Path)|$($c.Name)"
     Assert ((Get-Val $c.Path $c.Name) -eq $c.Want) "repeat run kept $k"
@@ -230,6 +241,7 @@ Assert ($null -eq (Get-ScheduledTask -TaskPath '\' -TaskName $guardTask -ErrorAc
 Assert (-not (Test-Path -LiteralPath $guardDir)) 'restore removed the guard copy in Program Files'
 Assert (-not (Test-Path -LiteralPath $state)) 'restore removed state.json'
 Assert ((Get-Scheme) -eq $schemeBefore) "restore put the power plan back ($schemeBefore)"
+Assert ((Get-Val $sticky 'Flags') -eq $stickyBefore) "restore put Sticky Keys back ([$stickyBefore])"
 $plans = & powercfg.exe /list | Out-String
 Assert ($plans -notmatch $perfScheme) 'restore deleted the Cemal.cloud power plan'
 Invoke-Script 'Win11-Debloat.ps1' @('-Check') 2

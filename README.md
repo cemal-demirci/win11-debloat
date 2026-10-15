@@ -107,6 +107,19 @@ Bilmeniz gerekenler:
 
 İstemezseniz uygulamada **Performans ayarları**'nın işaretini kaldırın (PowerShell'de `-SkipPerformance`).
 
+### Oyuncu ayarları (isteğe bağlı)
+
+Varsayılan olarak kapalıdır. Uygulamada **Oyuncu ayarları**'nı işaretleyin (PowerShell'de `-GamingTweaks`):
+
+| | Ne yapar |
+|---|---|
+| **Fare ivmesi** | "İşaretçi hassasiyetini artır" kapanır, fare elinizle 1:1 hareket eder. |
+| **Zamanlayıcı** | Bir oyun yüksek zamanlayıcı çözünürlüğü istediğinde bu tüm sisteme uygulanır (Windows 10 2004 öncesi davranış). Sürekli yüksek çözünürlük zorlanmaz, boştayken pil ve enerji harcanmaz. |
+| **Erişilebilirlik kısayolları** | Oyun ortasında Shift'e 5 kez basınca ya da Shift'i basılı tutunca çıkan Yapışkan Tuşlar ve Filtre Tuşları pencereleri, NumLock'ta Geçiş Tuşları penceresi çıkmaz. Yalnızca kısayol kapanır; bu özellikleri kullanıyorsanız açık kalırlar. |
+| **Oyun Modu** | Açık olduğundan emin olunur. |
+
+Fare ayarı bir sonraki oturum açışta, zamanlayıcı ayarı yeniden başlatınca geçerli olur.
+
 ## Ne değişir?
 
 | | |
@@ -145,7 +158,7 @@ ile aynı çekirdek):
 
 | Test | Sonuç (son çalıştırma) |
 |---|---|
-| Önizle → Uygula → Nöbetçi → tekrar Uygula → Geri al | 100 kontrol geçti. Uygulama 111 registry değerini değiştirdi ve performans güç planını açtı. Geri al hepsini, güç planı dahil, eski haline döndürdü. Önizleme hiçbir şeye dokunmadı. |
+| Önizle → Uygula (oyuncu ayarlarıyla) → Nöbetçi → tekrar Uygula → Geri al | 100 kontrol geçti. Uygulama 111 registry değerini değiştirdi ve performans güç planını açtı. Geri al hepsini, güç planı dahil, eski haline döndürdü. Önizleme hiçbir şeye dokunmadı. |
 | Windows güncellemesi taklidi | Telemetri politikası sıfırlandı, Copilot politikası silindi, bir görev yeniden açıldı. **Kontrol et** üçünü de buldu, **Yeniden uygula** düzeltti. Nöbetçi görevi kuruldu, yeni bir değişikliği kendi başına çalışıp düzeltti. |
 | Uygulama, penceresiz | Gömülü scriptler repodakilerle aynı. 64-bit PowerShell kullanılıyor. Önizle, Uygula, Kontrol et, Nöbetçi kur / kaldır ve Geri al uygulama üzerinden sorunsuz. |
 | Uygulama, penceresiyle | Pencere açıldı, Edge'in işareti tıklamayla kaldırıldı, **Önizle**'ye basıldı. Script `-KeepEdge` ile çalıştı, sonuç pencerede göründü. Bir politika geri değiştirildikten sonra açılan yeni pencere bunu kendiliğinden fark etti. |
@@ -166,6 +179,7 @@ kalıyor. CI makinesi yeniden başlatılamadığı için performans ayarlarını
 | Yeni Outlook'u kaldır (işaretsiz) | `-KeepOutlookNew` | Yeni Outlook kalır |
 | Arayüz ayarları (işaretsiz) | `-SkipUiTweaks` | Dosya uzantısı, sağ tık menüsü gibi ayarlara dokunmaz |
 | Performans ayarları (işaretsiz) | `-SkipPerformance` | Saydamlık, animasyon, arka plan, zamanlayıcı ve güç ayarlarına dokunmaz |
+| Oyuncu ayarları (işaretli) | `-GamingTweaks` | Fare ivmesi kapalı, zamanlayıcı çözünürlüğü, erişilebilirlik kısayolları kapalı, Oyun Modu açık |
 | Kontrol et | `-Check` | Neyin geri döndüğünü listeler, hiçbir şeyi değiştirmez (çıkış kodu 10: değişen var) |
 | Kontrol et → Evet | `-Reapply` | Yalnızca geri dönenleri son seferki seçeneklerle tekrar uygular |
 | Nöbetçi | `-InstallGuard`, `-RemoveGuard` | Oturum açınca kontrol edip düzelten görevi kurar / kaldırır |
@@ -200,6 +214,9 @@ repository and shows their output live.
   performance power plan with power throttling off. Defender, Windows Update and CPU mitigations are never touched.
   `-SkipPerformance` leaves all of it alone; **Kontrol et** shows processes, service hosts, running services and memory
   before the first run vs now.
+- **Gaming (optional, `-GamingTweaks`):** mouse acceleration off, timer resolution requests system-wide again (nothing
+  forced), Sticky / Filter / Toggle Keys shortcut prompts off (only the shortcut bit; the features keep their state),
+  Game Mode on.
 - **Guard:** every run saves what it put in place (`state.json`). **Kontrol et** (`-Check`) lists what Windows turned
   back since then (registry values, re-enabled tasks, returned apps, reinstalled Edge / OneDrive) and `-Reapply` fixes
   only those. The optional **Nöbetçi** (`-InstallGuard`) is a sign-in task that does this by itself and logs to

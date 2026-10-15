@@ -2,7 +2,7 @@
 
 **`Win11-Debloat.exe`** dosyasını indirip çalıştırın. Kurulum gerekmez, yönetici izni ister.
 
-1. Seçenekleri işaretleyin. **Performans ayarları** saydamlığı ve animasyonları kapatır, arka plan uygulamalarını durdurur, masaüstünde yüksek performans güç planını açar (hepsi geri alınabilir; Defender, Windows Update ve işlemci korumalarına dokunulmaz).
+1. Seçenekleri işaretleyin. **Performans ayarları** saydamlığı ve animasyonları kapatır, arka plan uygulamalarını durdurur, masaüstünde yüksek performans güç planını açar (hepsi geri alınabilir; Defender, Windows Update ve işlemci korumalarına dokunulmaz). İsteğe bağlı **Oyuncu ayarları** fare ivmesini ve oyun ortasında çıkan Yapışkan Tuşlar pencerelerini kapatır.
 2. **Önizle** ile nelerin değişeceğine bakın (hiçbir şey değişmez).
 3. **Uygula**'ya basın, bitince bilgisayarı yeniden başlatın.
 4. Beğenmezseniz **Geri al**.

@@ -21,7 +21,7 @@ namespace CemalCloud.Win11Debloat
         private static readonly HashSet<string> AllowedSwitches = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "-DryRun", "-KeepEdge", "-KeepOneDrive", "-KeepXbox", "-KeepThirdParty",
-            "-KeepOutlookNew", "-SkipUiTweaks", "-SkipPerformance", "-SkipRestorePoint", "-Force",
+            "-KeepOutlookNew", "-SkipUiTweaks", "-SkipPerformance", "-GamingTweaks", "-SkipRestorePoint", "-Force",
             "-Check", "-Reapply", "-InstallGuard", "-RemoveGuard"
         };
 

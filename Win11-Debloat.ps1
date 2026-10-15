@@ -59,6 +59,13 @@
     throttling. Security features (Defender, updates, CPU mitigations) are
     never touched.
 
+.PARAMETER GamingTweaks
+    Optional (off by default): mouse acceleration off ("Enhance pointer
+    precision", 1:1 movement), timer resolution requests apply system-wide
+    again (behaviour before Windows 10 2004; nothing is forced), the Sticky /
+    Filter / Toggle Keys shortcut prompts off (the features themselves keep
+    their state), Game Mode on.
+
 .PARAMETER SkipRestorePoint
     Continue even if a restore point cannot be created.
 
@@ -115,6 +122,7 @@ param(
     [switch]$KeepThirdParty,
     [switch]$SkipUiTweaks,
     [switch]$SkipPerformance,
+    [switch]$GamingTweaks,
     [switch]$SkipRestorePoint,
     [switch]$Force,
     [switch]$Check,
@@ -127,7 +135,7 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 $ProgressPreference    = 'SilentlyContinue'
 
-$ScriptVersion = '1.2.0'
+$ScriptVersion = '1.3.0'
 $Stamp     = Get-Date -Format 'yyyyMMdd-HHmmss'
 $BaseDir   = Join-Path $env:ProgramData 'CemalCloud\Win11Debloat'
 $BackupDir = Join-Path $BaseDir $Stamp
@@ -424,7 +432,8 @@ function Save-State {
         Options  = [ordered]@{
             KeepEdge = [bool]$KeepEdge; KeepOneDrive = [bool]$KeepOneDrive; KeepXbox = [bool]$KeepXbox
             KeepOutlookNew = [bool]$KeepOutlookNew; KeepThirdParty = [bool]$KeepThirdParty
-            SkipUiTweaks = [bool]$SkipUiTweaks; SkipPerformance = [bool]$SkipPerformance; Force = [bool]$Force
+            SkipUiTweaks = [bool]$SkipUiTweaks; SkipPerformance = [bool]$SkipPerformance; GamingTweaks = [bool]$GamingTweaks
+            Force = [bool]$Force
         }
         Reg      = @($script:Desired.Reg.ToArray())
         Tasks    = @($script:Desired.Tasks.ToArray())
@@ -683,7 +692,7 @@ if ($Reapply) {
     }
     # Same choices as the last run.
     $opt = Get-Prop $prev 'Options'
-    foreach ($n in 'KeepEdge', 'KeepOneDrive', 'KeepXbox', 'KeepOutlookNew', 'KeepThirdParty', 'SkipUiTweaks', 'SkipPerformance', 'Force') {
+    foreach ($n in 'KeepEdge', 'KeepOneDrive', 'KeepXbox', 'KeepOutlookNew', 'KeepThirdParty', 'SkipUiTweaks', 'SkipPerformance', 'GamingTweaks', 'Force') {
         Set-Variable -Name $n -Value ([bool](Get-Prop $opt $n))
     }
     Write-Step ("Reapplying with the options of the last run ({0} drifted)" -f $script:DriftCount)
@@ -1134,7 +1143,33 @@ try {
     }
 
     # =======================================================================
-    # 10. Quality-of-life tweaks
+    # 10. Gaming (optional, -GamingTweaks)
+    # =======================================================================
+    if ($GamingTweaks) {
+        Write-Step 'Gaming'
+        # Mouse acceleration off: 1:1 pointer movement (takes effect at the next sign-in)
+        $mouse = 'HKCU:\Control Panel\Mouse'
+        Set-Reg $mouse 'MouseSpeed' '0' 'String'
+        Set-Reg $mouse 'MouseThreshold1' '0' 'String'
+        Set-Reg $mouse 'MouseThreshold2' '0' 'String'
+        # A game's timer resolution request applies system-wide again (as before 2004). Nothing is forced.
+        Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel' 'GlobalTimerResolutionRequests' 1
+        # Shift x5 / holding Shift / NumLock 5 s no longer pop up a dialog mid-game. Only the
+        # "shortcut active" bit (0x4) is cleared, so anyone who uses these features keeps them.
+        foreach ($a in @(@('StickyKeys', 510), @('Keyboard Response', 126), @('ToggleKeys', 62))) {
+            $p = "HKCU:\Control Panel\Accessibility\$($a[0])"
+            $cur = [int]$a[1]
+            try {
+                $v = (Get-ItemProperty -LiteralPath $p -Name 'Flags' -ErrorAction Stop).Flags
+                if ("$v" -match '^\d+$') { $cur = [int]"$v" }
+            } catch { }
+            Set-Reg $p 'Flags' ([string]($cur -band (-bnot 4))) 'String'
+        }
+        Set-Reg 'HKCU:\Software\Microsoft\GameBar' 'AutoGameModeEnabled' 1
+    }
+
+    # =======================================================================
+    # 11. Quality-of-life tweaks
     # =======================================================================
     if (-not $SkipUiTweaks) {
         Write-Step 'Quality-of-life tweaks'

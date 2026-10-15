@@ -16,7 +16,7 @@ namespace CemalCloud.Win11Debloat
         private static readonly Color Muted = Color.FromArgb(100, 100, 110);
         private static readonly Color Alert = Color.FromArgb(194, 65, 12);
 
-        private readonly CheckBox chkEdge, chkOneDrive, chkXbox, chkThirdParty, chkOutlook, chkUi, chkPerf, chkGuard;
+        private readonly CheckBox chkEdge, chkOneDrive, chkXbox, chkThirdParty, chkOutlook, chkUi, chkPerf, chkGaming, chkGuard;
         private readonly Button btnPreview, btnApply, btnCheck, btnRestore;
         private readonly Label lblStatus;
         private readonly ProgressBar progress;
@@ -37,7 +37,7 @@ namespace CemalCloud.Win11Debloat
             AutoScaleMode = AutoScaleMode.Dpi;
             Text = "Windows 11 Debloat · Cemal.cloud";
             Font = new Font("Segoe UI", 9.75f);
-            ClientSize = new Size(780, 680);
+            ClientSize = new Size(780, 705);
             MinimumSize = new Size(640, 560);
             StartPosition = FormStartPosition.CenterScreen;
             BackColor = Color.White;
@@ -77,6 +77,11 @@ namespace CemalCloud.Win11Debloat
               + "Store uygulamaları arka planda çalışmaz, açılış gecikmesi kalkar, ön plandaki uygulamaya öncelik verilir, "
               + "servisler daha az svchost'ta toplanır. Masaüstü bilgisayarlarda yüksek performans güç planı; dizüstünde güç planına dokunulmaz. "
               + "Defender, Windows Update ve işlemci güvenlik korumalarına dokunulmaz.");
+            chkGaming = Option("chkGaming", "Oyuncu ayarları (fare ivmesi kapalı, zamanlayıcı, Yapışkan Tuşlar uyarısı kapalı)",
+                "İsteğe bağlı. Fare ivmesi (\"İşaretçi hassasiyetini artır\") kapanır, fare 1:1 hareket eder. Bir oyun yüksek zamanlayıcı "
+              + "çözünürlüğü istediğinde tüm sisteme uygulanır, sürekli zorlanmaz. Shift'e 5 kez basınca çıkan Yapışkan Tuşlar / "
+              + "Filtre Tuşları / Geçiş Tuşları pencereleri çıkmaz (özellikleri kullanıyorsanız açık kalır). Oyun Modu açık.");
+            chkGaming.Checked = false;
             chkGuard = Option("chkGuard", "Nöbetçi: Windows güncellemesi geri açarsa yeniden uygula",
                 "Her oturum açışınızdan 2 dakika sonra kontrol eder. Bir güncelleme ayarları geri açtıysa ya da uygulamaları "
               + "geri kurduysa yalnızca onları yeniden uygular, her şeyi kaydeder. Kayıt: guard.log. \"Geri al\" nöbetçiyi de kaldırır.");
@@ -103,7 +108,9 @@ namespace CemalCloud.Win11Debloat
             options.SetColumnSpan(chkUi, 2);
             options.Controls.Add(chkPerf, 0, 4);
             options.SetColumnSpan(chkPerf, 2);
-            options.Controls.Add(chkGuard, 0, 5);
+            options.Controls.Add(chkGaming, 0, 5);
+            options.SetColumnSpan(chkGaming, 2);
+            options.Controls.Add(chkGuard, 0, 6);
             options.SetColumnSpan(chkGuard, 2);
 
             var always = new Label
@@ -115,7 +122,7 @@ namespace CemalCloud.Win11Debloat
                 MaximumSize = new Size(700, 0),
                 Margin = new Padding(3, 10, 3, 4)
             };
-            options.Controls.Add(always, 0, 6);
+            options.Controls.Add(always, 0, 7);
             options.SetColumnSpan(always, 2);
 
             var optionsBox = new GroupBox
@@ -291,6 +298,7 @@ namespace CemalCloud.Win11Debloat
             if (!chkOutlook.Checked) s.Add("-KeepOutlookNew");
             if (!chkUi.Checked) s.Add("-SkipUiTweaks");
             if (!chkPerf.Checked) s.Add("-SkipPerformance");
+            if (chkGaming.Checked) s.Add("-GamingTweaks");
             return s;
         }
 
@@ -461,7 +469,7 @@ namespace CemalCloud.Win11Debloat
         private void SetBusy(bool busy, string status)
         {
             btnPreview.Enabled = btnApply.Enabled = btnCheck.Enabled = btnRestore.Enabled = !busy;
-            foreach (var c in new[] { chkEdge, chkOneDrive, chkXbox, chkThirdParty, chkOutlook, chkUi, chkPerf, chkGuard }) c.Enabled = !busy;
+            foreach (var c in new[] { chkEdge, chkOneDrive, chkXbox, chkThirdParty, chkOutlook, chkUi, chkPerf, chkGaming, chkGuard }) c.Enabled = !busy;
             progress.Visible = busy;
             progress.MarqueeAnimationSpeed = busy ? 30 : 0;
             lblStatus.Text = status;
