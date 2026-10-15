@@ -7,8 +7,10 @@
 .DESCRIPTION
     Removes Copilot, Recall, Xbox, Widgets, consumer/promoted apps, OneDrive and
     (where Microsoft allows it) Edge. Turns off telemetry, ads, suggestions and
-    Bing in Start. Every registry change is recorded in an undo manifest so
-    Win11-Restore.ps1 can roll it back.
+    Bing in Start. Applies performance settings (visual effects, transparency,
+    background apps, scheduler, NTFS, service grouping, power plan on desktops).
+    Every registry change is recorded in an undo manifest so Win11-Restore.ps1
+    can roll it back.
 
     Kept on purpose (work machine safe):
       Microsoft Store, winget, Terminal, Photos, Calculator, Notepad, Paint,
@@ -47,6 +49,15 @@
 
 .PARAMETER SkipUiTweaks
     Skip quality-of-life tweaks (file extensions, classic context menu, etc.).
+
+.PARAMETER SkipPerformance
+    Skip the performance settings: transparency and animations off (ClearType
+    and thumbnails stay), background Store apps off, no startup delay, MMCSS and
+    foreground priority, NTFS last-access updates off, service host grouping
+    (not with -KeepXbox), no P2P update uploads, larger icon cache, and on
+    desktops (no battery) a high performance power plan without power
+    throttling. Security features (Defender, updates, CPU mitigations) are
+    never touched.
 
 .PARAMETER SkipRestorePoint
     Continue even if a restore point cannot be created.
@@ -103,6 +114,7 @@ param(
     [switch]$KeepOutlookNew,
     [switch]$KeepThirdParty,
     [switch]$SkipUiTweaks,
+    [switch]$SkipPerformance,
     [switch]$SkipRestorePoint,
     [switch]$Force,
     [switch]$Check,
@@ -115,7 +127,7 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 $ProgressPreference    = 'SilentlyContinue'
 
-$ScriptVersion = '1.1.0'
+$ScriptVersion = '1.2.0'
 $Stamp     = Get-Date -Format 'yyyyMMdd-HHmmss'
 $BaseDir   = Join-Path $env:ProgramData 'CemalCloud\Win11Debloat'
 $BackupDir = Join-Path $BaseDir $Stamp
@@ -125,6 +137,7 @@ $DriftFile = Join-Path $BaseDir 'drift.json'
 $GuardLog  = Join-Path $BaseDir 'guard.log'
 $GuardTask = 'Cemal.cloud Win11 Debloat Guard'
 $GuardDir  = Join-Path $env:ProgramFiles 'CemalCloud\Win11Debloat'
+$PerfScheme = 'c3c10ad0-0000-4c00-8000-0000000c10ad'   # our power plan (copy of Ultimate / High performance)
 
 $script:Undo  = New-Object System.Collections.ArrayList
 $script:Stats = [ordered]@{ Apps = 0; Registry = 0; Tasks = 0; Features = 0; Skipped = 0; Failed = 0 }
@@ -134,8 +147,9 @@ $script:Aborted = $false
 $script:Desired = @{
     Reg = New-Object System.Collections.ArrayList; Tasks = New-Object System.Collections.ArrayList
     Apps = @(); Stuck = New-Object System.Collections.ArrayList
-    Edge = $false; OneDrive = $false; Recall = $false
+    Edge = $false; OneDrive = $false; Recall = $false; Power = $null
 }
+$script:Baseline = $null     # footprint before the first run (processes, services, memory)
 $script:DriftExit = 0; $script:DriftCount = 0
 
 # ---------------------------------------------------------------------------
@@ -410,7 +424,7 @@ function Save-State {
         Options  = [ordered]@{
             KeepEdge = [bool]$KeepEdge; KeepOneDrive = [bool]$KeepOneDrive; KeepXbox = [bool]$KeepXbox
             KeepOutlookNew = [bool]$KeepOutlookNew; KeepThirdParty = [bool]$KeepThirdParty
-            SkipUiTweaks = [bool]$SkipUiTweaks; Force = [bool]$Force
+            SkipUiTweaks = [bool]$SkipUiTweaks; SkipPerformance = [bool]$SkipPerformance; Force = [bool]$Force
         }
         Reg      = @($script:Desired.Reg.ToArray())
         Tasks    = @($script:Desired.Tasks.ToArray())
@@ -419,10 +433,47 @@ function Save-State {
         Edge     = $script:Desired.Edge
         OneDrive = $script:Desired.OneDrive
         Recall   = $script:Desired.Recall
+        Power    = $script:Desired.Power
+        Baseline = $null
     }
+    # Keep the footprint from before the FIRST run, so -Check compares with the untouched PC.
+    $prev = Read-State
+    $state.Baseline = if ($prev -and (Get-Prop $prev 'Baseline')) { Get-Prop $prev 'Baseline' } else { $script:Baseline }
     try {
         Set-Content -LiteralPath $StateFile -Value (ConvertTo-Json -InputObject $state -Depth 6) -Encoding UTF8
     } catch { Write-Warn2 "Could not write state.json: $($_.Exception.Message)" }
+}
+
+function Get-Footprint {
+    # What the PC carries around: processes, service hosts, running services, memory in use.
+    $os = Get-CimInstance -ClassName Win32_OperatingSystem
+    return [ordered]@{
+        Time         = (Get-Date).ToString('yyyy-MM-dd HH:mm')
+        Processes    = @(Get-Process).Count
+        Svchost      = @(Get-Process -Name svchost -ErrorAction SilentlyContinue).Count
+        Services     = @(Get-Service -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Running' }).Count
+        MemoryUsedMB = [int](($os.TotalVisibleMemorySize - $os.FreePhysicalMemory) / 1024)
+    }
+}
+
+function Get-NativeText([string]$Exe, [string[]]$Arguments) {
+    # stdout of a native tool as one string; stderr ignored (see Invoke-Native)
+    $prev = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    try { return "$(& $Exe @Arguments 2>$null)" } finally { $ErrorActionPreference = $prev }
+}
+
+function Get-ActiveScheme {
+    $out = Get-NativeText 'powercfg.exe' @('/getactivescheme')
+    if ($out -match '([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})') { return $Matches[1].ToLower() }
+    return $null
+}
+
+function Test-OnBattery {
+    # Laptops and tablets keep their power plan: a performance plan drains the battery.
+    try {
+        if ((Get-CimInstance -ClassName Win32_ComputerSystem).PCSystemType -eq 2) { return $true }
+        return (@(Get-CimInstance -ClassName Win32_Battery -ErrorAction Stop).Count -gt 0)
+    } catch { return $false }
 }
 
 function Add-GuardLog([string]$Text) {
@@ -507,12 +558,21 @@ function Invoke-DriftCheck {
         }
     }
 
+    $want = Get-Prop $state 'Power'
+    if ($want) {
+        $active = Get-ActiveScheme
+        if ($active -ne $want) {
+            [void]$drift.Add([ordered]@{ Kind = 'Power'; What = 'power plan'; Expected = $want; Found = "$active" })
+        }
+    }
+
     $shown = 0
     foreach ($d in $drift) {
         if ($shown -ge 40) { Write-Info ("... and {0} more (see {1})" -f ($drift.Count - $shown), $DriftFile); break }
         switch ($d.Kind) {
             'Reg'   { Write-Warn2 ("reg {0}: expected {1}, found {2}" -f $d.What, $d.Expected, $d.Found) }
             'Task'  { Write-Warn2 ("task enabled again: {0}" -f $d.What) }
+            'Power' { Write-Warn2 ("power plan changed: expected {0}, found {1}" -f $d.Expected, $d.Found) }
             default { Write-Warn2 ("{0} is back: {1}" -f $d.Kind.ToLower(), $d.What) }
         }
         $shown++
@@ -532,6 +592,24 @@ function Invoke-DriftCheck {
         $script:DriftExit = 10
     }
     $script:DriftCount = $drift.Count
+
+    $base = Get-Prop $state 'Baseline'
+    if ($base) {
+        $now = Get-Footprint
+        Write-Step ("Footprint: before the first run ({0}) -> now" -f (Get-Prop $base 'Time'))
+        foreach ($row in @(@('processes', 'Processes'), @('service hosts', 'Svchost'), @('running services', 'Services'))) {
+            $b = [int](Get-Prop $base $row[1]); $n = [int]$now[$row[1]]
+            Write-Info ("{0,-17} {1,6} -> {2,-6} ({3:+0;-0;0})" -f $row[0], $b, $n, ($n - $b))
+        }
+        $bm = [int](Get-Prop $base 'MemoryUsedMB'); $nm = [int]$now.MemoryUsedMB
+        Write-Info ("{0,-17} {1,6} -> {2,-6} ({3:+0;-0;0} MB)" -f 'memory in use MB', $bm, $nm, ($nm - $bm))
+        try {
+            $boot = (Get-CimInstance -ClassName Win32_OperatingSystem).LastBootUpTime
+            $first = [datetime]::ParseExact([string](Get-Prop $base 'Time'), 'yyyy-MM-dd HH:mm', [System.Globalization.CultureInfo]::InvariantCulture)
+            if ($boot -lt $first) { Write-Info 'not restarted since the first run yet: most gains show after a restart' }
+        } catch { }
+        Write-Info 'memory depends on what is open; compare with the same apps running'
+    }
 }
 
 function Install-Guard {
@@ -605,7 +683,7 @@ if ($Reapply) {
     }
     # Same choices as the last run.
     $opt = Get-Prop $prev 'Options'
-    foreach ($n in 'KeepEdge', 'KeepOneDrive', 'KeepXbox', 'KeepOutlookNew', 'KeepThirdParty', 'SkipUiTweaks', 'Force') {
+    foreach ($n in 'KeepEdge', 'KeepOneDrive', 'KeepXbox', 'KeepOutlookNew', 'KeepThirdParty', 'SkipUiTweaks', 'SkipPerformance', 'Force') {
         Set-Variable -Name $n -Value ([bool](Get-Prop $opt $n))
     }
     Write-Step ("Reapplying with the options of the last run ({0} drifted)" -f $script:DriftCount)
@@ -664,6 +742,7 @@ try {
             'HKCU-CDM'           = 'HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
             'HKCU-Explorer'      = 'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer'
             'HKCU-Search'        = 'HKCU\Software\Microsoft\Windows\CurrentVersion\Search'
+            'HKCU-Desktop'       = 'HKCU\Control Panel\Desktop'
         }
         foreach ($k in $exports.Keys) {
             [void](Invoke-Native 'reg.exe' @('export', $exports[$k], (Join-Path $BackupDir "$k.reg"), '/y'))
@@ -671,6 +750,7 @@ try {
         Get-AppxPackage -AllUsers | Select-Object Name, Version, PackageFullName |
             Sort-Object Name | Export-Csv (Join-Path $BackupDir 'apps-before.csv') -NoTypeInformation
         Write-Ok "backups in $BackupDir"
+        if (-not $Reapply) { try { $script:Baseline = Get-Footprint } catch { } }
     }
 
     # =======================================================================
@@ -981,7 +1061,80 @@ try {
     }
 
     # =======================================================================
-    # 9. Quality-of-life tweaks
+    # 9. Performance (only settings that are safe to undo; nothing that
+    #    lowers security: Defender, Windows Update, CPU mitigations untouched)
+    # =======================================================================
+    if (-not $SkipPerformance) {
+        Write-Step 'Performance: visual effects and transparency'
+        # Custom visual effects: animations, fades and shadows off; ClearType,
+        # thumbnails, full window drag and selection rectangle stay.
+        $desk = 'HKCU:\Control Panel\Desktop'
+        Set-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize' 'EnableTransparency' 0
+        Set-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects' 'VisualFXSetting' 3
+        Set-Reg $desk 'UserPreferencesMask' ([byte[]](0x90, 0x12, 0x03, 0x80, 0x10, 0x00, 0x00, 0x00)) 'Binary'
+        Set-Reg $desk 'FontSmoothing' '2' 'String'
+        Set-Reg $desk 'DragFullWindows' '1' 'String'
+        Set-Reg $desk 'MenuShowDelay' '0' 'String'
+        Set-Reg 'HKCU:\Control Panel\Desktop\WindowMetrics' 'MinAnimate' '0' 'String'
+        Set-Reg $adv 'TaskbarAnimations' 0
+        Set-Reg $adv 'ListviewAlphaSelect' 1
+        Set-Reg $adv 'ListviewShadow' 1
+        Set-Reg $adv 'IconsOnly' 0                          # keep thumbnails
+        Set-Reg 'HKCU:\Software\Microsoft\Windows\DWM' 'EnableAeroPeek' 0
+        Set-Reg 'HKCU:\Software\Microsoft\Windows\DWM' 'AlwaysHibernateThumbnails' 0
+
+        Write-Step 'Performance: background work'
+        Set-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications' 'GlobalUserDisabled' 1
+        Set-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Search' 'BackgroundAppGlobalToggle' 0
+        Set-Reg 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize' 'StartupDelayInMSec' 0
+        Set-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Task Scheduler\Maintenance' 'WakeUp' 0
+        Set-Reg 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization' 'DODownloadMode' 0   # no P2P upload
+
+        Write-Step 'Performance: scheduler, file system, services'
+        Set-Reg 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile' 'SystemResponsiveness' 10
+        Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl' 'Win32PrioritySeparation' 38   # 0x26: short, variable, high foreground boost
+        # 0x80000001: last-access timestamps off, user managed (same as "fsutil behavior set disablelastaccess 1")
+        Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' 'NtfsDisableLastAccessUpdate' ([int]-2147483647)
+        Set-Reg 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer' 'Max Cached Icons' '4096' 'String'
+        if (-not $KeepXbox) {
+            # Group services into fewer svchost processes, as before Windows 10 1703 (Game Bar needs them split).
+            Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control' 'SvcHostSplitThresholdInKB' 0x7FFFFFFF
+        }
+
+        Write-Step 'Performance: power'
+        if (Test-OnBattery) {
+            Write-Info 'battery found (laptop / tablet / UPS): power plan and power throttling left as they are'
+        } else {
+            $active = Get-ActiveScheme
+            if ($active -eq $PerfScheme) {
+                $script:Desired.Power = $PerfScheme
+            } elseif ($DryRun) {
+                Write-Dry 'power plan: Cemal.cloud Performans (copy of Ultimate / High performance), power throttling off'
+            } else {
+                if ((Get-NativeText 'powercfg.exe' @('/list')) -notmatch $PerfScheme) {
+                    if ((Invoke-Native 'powercfg.exe' @('/duplicatescheme', 'e9a42b02-d5df-448d-aa00-03f14749eb61', $PerfScheme)) -ne 0) {
+                        [void](Invoke-Native 'powercfg.exe' @('/duplicatescheme', '8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c', $PerfScheme))
+                    }
+                    [void](Invoke-Native 'powercfg.exe' @('/changename', $PerfScheme, 'Cemal.cloud Performans',
+                        'Copy of Ultimate / High performance by Cemal.cloud win11-debloat'))
+                }
+                [void](Invoke-Native 'powercfg.exe' @('/setactive', $PerfScheme))
+                if ((Get-ActiveScheme) -eq $PerfScheme) {
+                    Add-Undo @{ Kind = 'Power'; Old = $active; Scheme = $PerfScheme }
+                    $script:Desired.Power = $PerfScheme
+                    Write-Ok 'power plan: Cemal.cloud Performans'
+                } else {
+                    # e.g. Modern Standby PCs only offer the Balanced plan
+                    Write-Warn2 'this PC does not allow a performance power plan, kept the current one'
+                    $script:Stats.Skipped++
+                }
+            }
+            Set-Reg 'HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling' 'PowerThrottlingOff' 1
+        }
+    }
+
+    # =======================================================================
+    # 10. Quality-of-life tweaks
     # =======================================================================
     if (-not $SkipUiTweaks) {
         Write-Step 'Quality-of-life tweaks'

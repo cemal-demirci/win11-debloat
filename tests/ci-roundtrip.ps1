@@ -45,8 +45,27 @@ $checks = @(
     @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Edge'; Name = 'StartupBoostEnabled'; Want = '0' },
     @{ Path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'; Name = 'HideFileExt'; Want = '0' },
     @{ Path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'; Name = 'SilentInstalledAppsEnabled'; Want = '0' },
-    @{ Path = 'HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32'; Name = '(Default)'; Want = '' }
+    @{ Path = 'HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32'; Name = '(Default)'; Want = '' },
+    # performance
+    @{ Path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'; Name = 'EnableTransparency'; Want = '0' },
+    @{ Path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects'; Name = 'VisualFXSetting'; Want = '3' },
+    @{ Path = 'HKCU:\Control Panel\Desktop'; Name = 'UserPreferencesMask'; Want = '144 18 3 128 16 0 0 0' },
+    @{ Path = 'HKCU:\Control Panel\Desktop'; Name = 'MenuShowDelay'; Want = '0' },
+    @{ Path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications'; Name = 'GlobalUserDisabled'; Want = '1' },
+    @{ Path = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile'; Name = 'SystemResponsiveness'; Want = '10' },
+    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\PriorityControl'; Name = 'Win32PrioritySeparation'; Want = '38' },
+    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem'; Name = 'NtfsDisableLastAccessUpdate'; Want = '-2147483647' },
+    @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control'; Name = 'SvcHostSplitThresholdInKB'; Want = '2147483647' }
 )
+$perfScheme = 'c3c10ad0-0000-4c00-8000-0000000c10ad'
+function Get-Scheme {
+    $prev = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    try { $o = "$(& powercfg.exe /getactivescheme 2>$null)" } finally { $ErrorActionPreference = $prev }
+    if ($o -match '([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})') { return $Matches[1].ToLower() }
+    return ''
+}
+$schemeBefore = Get-Scheme
+Write-Host "power plan before: $schemeBefore"
 if (Get-Service -Name DiagTrack -ErrorAction SilentlyContinue) {
     $checks += @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Services\DiagTrack'; Name = 'Start'; Want = '4' }
 }
@@ -86,6 +105,13 @@ foreach ($c in $checks) {
 }
 $manifests = @(Get-ChildItem $base -Recurse -Filter 'undo.json')
 Assert ($manifests.Count -eq 1) "first run wrote one undo.json (found $($manifests.Count))"
+if ("$script:LastOut" -match 'does not allow a performance power plan|battery found') {
+    $script:PowerNote = 'power plan left alone on this VM'
+    Write-Host "::warning title=Power plan::$($script:PowerNote)"
+} else {
+    Assert ((Get-Scheme) -eq $perfScheme) 'performance power plan is active'
+    $script:PowerNote = 'performance power plan set and restored'
+}
 $firstRun = 'unknown'
 if ($manifests.Count -ge 1) {
     $parsed  = Get-Content -LiteralPath $manifests[0].FullName -Raw | ConvertFrom-Json
@@ -112,6 +138,7 @@ Assert ($acl.AreAccessRulesProtected -and $usersWrite.Count -eq 0) 'backup folde
 
 Invoke-Script 'Win11-Debloat.ps1' @('-Check') 0
 Assert ("$script:LastOut" -match 'all in place') 'check right after the run: all in place'
+Assert ("$script:LastOut" -match 'Footprint: before the first run') 'check shows the footprint before the first run and now'
 
 # Simulate what a feature update does: policy reset, policy deleted, task enabled again.
 # Restore undoes what the tool did. A value that was already right before the first
@@ -202,6 +229,9 @@ Assert ($done.Count -ge 1) "restored manifests renamed (found $($done.Count))"
 Assert ($null -eq (Get-ScheduledTask -TaskPath '\' -TaskName $guardTask -ErrorAction SilentlyContinue)) 'restore removed the guard task'
 Assert (-not (Test-Path -LiteralPath $guardDir)) 'restore removed the guard copy in Program Files'
 Assert (-not (Test-Path -LiteralPath $state)) 'restore removed state.json'
+Assert ((Get-Scheme) -eq $schemeBefore) "restore put the power plan back ($schemeBefore)"
+$plans = & powercfg.exe /list | Out-String
+Assert ($plans -notmatch $perfScheme) 'restore deleted the Cemal.cloud power plan'
 Invoke-Script 'Win11-Debloat.ps1' @('-Check') 2
 Assert $true 'check after restore: nothing applied (exit 2)'
 
@@ -213,7 +243,7 @@ if ($failures.Count -gt 0) {
 }
 Write-Host 'All round-trip checks passed' -ForegroundColor Green
 if ($env:GITHUB_ACTIONS) {
-    Write-Host ("::notice title=Windows round trip::{0} checks passed on Windows build {1}. First run changed {2}. Check found every simulated drift, -Reapply fixed it, {3}. Dry run changed nothing, restore put every checked value back and removed the guard." -f `
-        $script:Passed, [Environment]::OSVersion.Version.Build, $firstRun, $script:GuardNote)
+    Write-Host ("::notice title=Windows round trip::{0} checks passed on Windows build {1}. First run changed {2}. Check found every simulated drift, -Reapply fixed it, {3}; {4}. Dry run changed nothing, restore put every checked value back and removed the guard." -f `
+        $script:Passed, [Environment]::OSVersion.Version.Build, $firstRun, $script:GuardNote, $script:PowerNote)
 }
 exit 0

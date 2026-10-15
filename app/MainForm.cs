@@ -16,7 +16,7 @@ namespace CemalCloud.Win11Debloat
         private static readonly Color Muted = Color.FromArgb(100, 100, 110);
         private static readonly Color Alert = Color.FromArgb(194, 65, 12);
 
-        private readonly CheckBox chkEdge, chkOneDrive, chkXbox, chkThirdParty, chkOutlook, chkUi, chkGuard;
+        private readonly CheckBox chkEdge, chkOneDrive, chkXbox, chkThirdParty, chkOutlook, chkUi, chkPerf, chkGuard;
         private readonly Button btnPreview, btnApply, btnCheck, btnRestore;
         private readonly Label lblStatus;
         private readonly ProgressBar progress;
@@ -37,7 +37,7 @@ namespace CemalCloud.Win11Debloat
             AutoScaleMode = AutoScaleMode.Dpi;
             Text = "Windows 11 Debloat · Cemal.cloud";
             Font = new Font("Segoe UI", 9.75f);
-            ClientSize = new Size(780, 640);
+            ClientSize = new Size(780, 680);
             MinimumSize = new Size(640, 560);
             StartPosition = FormStartPosition.CenterScreen;
             BackColor = Color.White;
@@ -53,7 +53,7 @@ namespace CemalCloud.Win11Debloat
             };
             var subtitle = new Label
             {
-                Text = "Reklamları, Copilot'u ve telemetriyi kapatır. Her değişiklik kaydedilir, \"Geri al\" ile eski haline döner.",
+                Text = "Reklamları, Copilot'u ve telemetriyi kapatır, Windows'u hızlandırır. Her değişiklik kaydedilir, \"Geri al\" ile eski haline döner.",
                 ForeColor = Muted,
                 AutoSize = true,
                 MaximumSize = new Size(740, 0)
@@ -72,6 +72,11 @@ namespace CemalCloud.Win11Debloat
                 "Sadece Windows ile gelen \"yeni Outlook\" uygulaması. Microsoft 365'teki klasik Outlook etkilenmez.");
             chkUi = Option("chkUi", "Arayüz ayarları (dosya uzantıları, klasik sağ tık menüsü)",
                 "Dosya uzantılarını ve gizli dosyaları gösterir, klasik sağ tık menüsünü getirir, Explorer'ı \"Bu Bilgisayar\" ile açar.");
+            chkPerf = Option("chkPerf", "Performans ayarları (saydamlık ve animasyonlar kapalı, arka plan uygulamaları, güç planı)",
+                "Hepsi geri alınabilir: saydamlık ve animasyonlar kapanır (ClearType ve küçük resimler kalır), "
+              + "Store uygulamaları arka planda çalışmaz, açılış gecikmesi kalkar, ön plandaki uygulamaya öncelik verilir, "
+              + "servisler daha az svchost'ta toplanır. Masaüstü bilgisayarlarda yüksek performans güç planı; dizüstünde güç planına dokunulmaz. "
+              + "Defender, Windows Update ve işlemci güvenlik korumalarına dokunulmaz.");
             chkGuard = Option("chkGuard", "Nöbetçi: Windows güncellemesi geri açarsa yeniden uygula",
                 "Her oturum açışınızdan 2 dakika sonra kontrol eder. Bir güncelleme ayarları geri açtıysa ya da uygulamaları "
               + "geri kurduysa yalnızca onları yeniden uygular, her şeyi kaydeder. Kayıt: guard.log. \"Geri al\" nöbetçiyi de kaldırır.");
@@ -96,7 +101,9 @@ namespace CemalCloud.Win11Debloat
             options.SetColumnSpan(chkThirdParty, 2);
             options.Controls.Add(chkUi, 0, 3);
             options.SetColumnSpan(chkUi, 2);
-            options.Controls.Add(chkGuard, 0, 4);
+            options.Controls.Add(chkPerf, 0, 4);
+            options.SetColumnSpan(chkPerf, 2);
+            options.Controls.Add(chkGuard, 0, 5);
             options.SetColumnSpan(chkGuard, 2);
 
             var always = new Label
@@ -108,7 +115,7 @@ namespace CemalCloud.Win11Debloat
                 MaximumSize = new Size(700, 0),
                 Margin = new Padding(3, 10, 3, 4)
             };
-            options.Controls.Add(always, 0, 5);
+            options.Controls.Add(always, 0, 6);
             options.SetColumnSpan(always, 2);
 
             var optionsBox = new GroupBox
@@ -283,6 +290,7 @@ namespace CemalCloud.Win11Debloat
             if (!chkThirdParty.Checked) s.Add("-KeepThirdParty");
             if (!chkOutlook.Checked) s.Add("-KeepOutlookNew");
             if (!chkUi.Checked) s.Add("-SkipUiTweaks");
+            if (!chkPerf.Checked) s.Add("-SkipPerformance");
             return s;
         }
 
@@ -453,7 +461,7 @@ namespace CemalCloud.Win11Debloat
         private void SetBusy(bool busy, string status)
         {
             btnPreview.Enabled = btnApply.Enabled = btnCheck.Enabled = btnRestore.Enabled = !busy;
-            foreach (var c in new[] { chkEdge, chkOneDrive, chkXbox, chkThirdParty, chkOutlook, chkUi, chkGuard }) c.Enabled = !busy;
+            foreach (var c in new[] { chkEdge, chkOneDrive, chkXbox, chkThirdParty, chkOutlook, chkUi, chkPerf, chkGuard }) c.Enabled = !busy;
             progress.Visible = busy;
             progress.MarqueeAnimationSpeed = busy ? 30 : 0;
             lblStatus.Text = status;

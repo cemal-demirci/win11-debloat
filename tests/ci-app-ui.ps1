@@ -115,16 +115,17 @@ $chkXbox     = Find-Control $win 'Xbox*'         '*BUTTON*'
 $chkOutlook  = Find-Control $win 'Yeni Outlook*' '*BUTTON*'
 $chkThird    = Find-Control $win '*parti*'       '*BUTTON*'
 $chkUi       = Find-Control $win 'Aray*'         '*BUTTON*'
+$chkPerf     = Find-Control $win 'Performans*'   '*BUTTON*'
 $btnPreview  = Find-Control $win '*nizle'        '*BUTTON*'
 $btnApply    = Find-Control $win 'Uygula'        '*BUTTON*'
 $btnRestore  = Find-Control $win 'Geri al'       '*BUTTON*'
 $btnCheck    = Find-Control $win 'Kontrol et'    '*BUTTON*'
 $chkGuard    = Find-Control $win 'N*bet*'        '*BUTTON*'
 $txtLog      = Find-Control $win '*'             '*EDIT*'
-Check $true 'all 11 buttons / options and the log are present'
+Check $true 'all 12 buttons / options and the log are present'
 Check ($W::SendMessage($chkGuard, $BM_GETCHECK, [IntPtr]::Zero, [IntPtr]::Zero).ToInt32() -eq 0) 'guard option is off while no guard is installed'
 
-foreach ($c in $chkEdge, $chkOneDrive, $chkXbox, $chkOutlook, $chkThird, $chkUi) {
+foreach ($c in $chkEdge, $chkOneDrive, $chkXbox, $chkOutlook, $chkThird, $chkUi, $chkPerf) {
     Check ($W::SendMessage($c, $BM_GETCHECK, [IntPtr]::Zero, [IntPtr]::Zero).ToInt32() -eq 1) "option $c is ticked by default"
 }
 foreach ($b in $btnPreview, $btnApply, $btnCheck, $btnRestore) {

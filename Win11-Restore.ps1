@@ -92,6 +92,12 @@ function Test-TrustedFile([string]$Path) {
     return @('S-1-5-32-544', 'S-1-5-18', 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464', $me) -contains $owner
 }
 
+function Invoke-Native([string]$Exe, [string[]]$Arguments) {
+    # Native stderr must not become a terminating error under 'Stop'.
+    $prev = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    try { & $Exe @Arguments 2>&1 | Out-Null; return $LASTEXITCODE } finally { $ErrorActionPreference = $prev }
+}
+
 function Get-Prop($Obj, [string]$Name) {
     # StrictMode-safe property read (older manifests may lack newer fields)
     $p = $Obj.PSObject.Properties[$Name]
@@ -200,7 +206,7 @@ Write-Ok "$restored registry value(s) restored"
 # ---------------------------------------------------------------------------
 # Pass 2: tasks, features, removed components
 # ---------------------------------------------------------------------------
-Write-Step 'Scheduled tasks and features'
+Write-Step 'Scheduled tasks, features, power plan'
 foreach ($e in $entries) {
     try {
         switch ($e.Kind) {
@@ -212,6 +218,14 @@ foreach ($e in $entries) {
             'Feature' {
                 if ($DryRun) { Write-Dry "enable feature $($e.Name)"; continue }
                 Enable-WindowsOptionalFeature -Online -FeatureName $e.Name -NoRestart -ErrorAction Stop | Out-Null
+                $restored++
+            }
+            'Power' {
+                $old = Get-Prop $e 'Old'
+                if ($DryRun) { Write-Dry "power plan back to $old"; continue }
+                if ($old) { [void](Invoke-Native 'powercfg.exe' @('/setactive', [string]$old)) }
+                [void](Invoke-Native 'powercfg.exe' @('/delete', [string]$e.Scheme))
+                Write-Ok 'power plan restored'
                 $restored++
             }
             'Appx'     { [void]$removedApps.Add($e.Name) }
