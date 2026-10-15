@@ -6,6 +6,8 @@
 2. **Önizle** ile nelerin değişeceğine bakın (hiçbir şey değişmez).
 3. **Uygula**'ya basın, bitince bilgisayarı yeniden başlatın.
 4. Beğenmezseniz **Geri al**.
+5. Bir güncellemeden sonra **Kontrol et**: Windows'un geri açtıklarını listeler, isterseniz sadece onları düzeltir.
+   **Nöbetçi** seçeneği bunu her oturum açışta kendisi yapar.
 
 Uygulama imzasız olduğu için Windows "Bilgisayarınız korundu" uyarısı gösterebilir: **Ek bilgi → Yine de çalıştır**. Dosyanın doğruluğunu `SHA256SUMS.txt` ile kontrol edebilirsiniz:
 
@@ -17,4 +19,4 @@ PowerShell ile kullanmak isteyenler için `Win11-Debloat.ps1` ve `Win11-Restore.
 
 ---
 
-**English:** download `Win11-Debloat.exe` and run it (no install, asks for admin). Tick the options, press **Önizle** (preview) to see what would change, then **Uygula** (apply) and restart; **Geri al** (restore) undoes everything. The app is unsigned, so SmartScreen may warn: *More info → Run anyway*. Verify the download with `SHA256SUMS.txt`.
+**English:** download `Win11-Debloat.exe` and run it (no install, asks for admin). Tick the options, press **Önizle** (preview) to see what would change, then **Uygula** (apply) and restart; **Geri al** (restore) undoes everything. After a Windows update, **Kontrol et** (check) lists what Windows turned back and fixes only that; the **Nöbetçi** (guard) option does it at every sign-in. The app is unsigned, so SmartScreen may warn: *More info → Run anyway*. Verify the download with `SHA256SUMS.txt`.

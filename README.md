@@ -17,6 +17,9 @@ Temizlemek kolaydır; zor olan geri dönmektir. Bu yüzden Win11 Debloat **yapt�
 - değiştirdiği her registry değerinin **eski halini** `undo.json`'a yazar,
 - beğenmezseniz **Geri al** butonu her şeyi eski haline döndürür.
 
+Neyi uyguladığını da kaydettiği için, bir Windows güncellemesi sonrası **neyin geri döndüğünü** tek tek söyleyebilir
+ve yalnızca onları düzeltir. İsterseniz bunu her oturum açışta kendisi yapar.
+
 116 KB'lık tek bir uygulamadır, kurulum gerekmez. Arka planda bu repodaki PowerShell scriptlerini çalıştırır ve ne
 yaptığını canlı olarak gösterir.
 
@@ -29,6 +32,7 @@ ve çalıştırın. Yönetici izni ister.
 2. **Önizle** ile nelerin değişeceğine bakın. Bu adımda hiçbir şey değişmez.
 3. **Uygula**'ya basın, bitince bilgisayarı yeniden başlatın.
 4. Beğenmezseniz **Geri al**.
+5. Bir güncellemeden sonra **Kontrol et**: Windows bir şeyi geri açtıysa listeler ve düzeltmeyi önerir.
 
 > Uygulama imzasız olduğu için Windows "Bilgisayarınız korundu" uyarısı gösterebilir: **Ek bilgi → Yine de çalıştır**.
 > İndirdiğiniz dosyayı Releases sayfasındaki `SHA256SUMS.txt` ile doğrulayabilirsiniz.
@@ -41,6 +45,8 @@ irm https://raw.githubusercontent.com/cemal-demirci/win11-debloat/main/Win11-Res
 
 powershell -ExecutionPolicy Bypass -File .\Win11-Debloat.ps1 -DryRun   # önizle
 powershell -ExecutionPolicy Bypass -File .\Win11-Debloat.ps1           # uygula
+powershell -ExecutionPolicy Bypass -File .\Win11-Debloat.ps1 -Check    # ne geri döndü?
+powershell -ExecutionPolicy Bypass -File .\Win11-Debloat.ps1 -Reapply  # sadece geri dönenleri düzelt
 powershell -ExecutionPolicy Bypass -File .\Win11-Restore.ps1           # geri al
 ```
 
@@ -53,8 +59,26 @@ powershell -ExecutionPolicy Bypass -File .\Win11-Restore.ps1           # geri al
 | Başlat aramasında Bing | Ayarlar'da yok | ✅ |
 | Ön yüklü uygulamalar | Tek tek, sadece sizin hesabınızdan | ✅ Tüm kullanıcılardan ve yeni hesaplardan |
 | Telemetri | "Gerekli" seviyesine kadar | ✅ Politika ile en düşük seviye |
-| Güncellemeden sonra | Baştan | Tekrar çalıştırın, sadece değişenler uygulanır |
+| Güncellemeden sonra | Fark etmezsiniz, baştan başlarsınız | ✅ **Kontrol et** neyin geri döndüğünü söyler, **Nöbetçi** kendisi düzeltir |
 | Geri dönüş | Ne yaptığınızı hatırlamanız gerekir | ✅ Tek tık |
+
+## Nöbetçi: güncellemeden sonra geri gelenler
+
+Büyük Windows güncellemeleri bazı politikaları sıfırlar, kaldırdığınız uygulamaları geri kurar, kapattığınız görevleri
+yeniden açar. Çoğu zaman bunu aylar sonra, Başlat menüsünde yine bir reklam gördüğünüzde fark edersiniz.
+
+Win11 Debloat her çalıştırmada neyi yerine koyduğunu kaydeder (`state.json`). Böylece sonradan neyin geri döndüğünü
+tahmin etmez, karşılaştırır:
+
+| | Ne yapar |
+|---|---|
+| **Kontrol et** | Son uygulamadan beri değişen registry değerlerini, yeniden açılan zamanlanmış görevleri, geri gelen uygulamaları, yeniden kurulan Edge ve OneDrive'ı listeler. Hiçbir şeyi değiştirmez. Uygulama her açılışta bu kontrolü kendisi de yapar. |
+| **Yeniden uygula** | Yalnızca geri dönenleri, son seferki seçeneklerinizle tekrar uygular. Her değişiklik yine kaydedilir, **Geri al** bunları da geri alır. |
+| **Nöbetçi** | Her oturum açışınızdan 2 dakika sonra kontrol eder. Bir şey geri dönmüşse düzeltir ve `guard.log`'a yazar, dönmemişse hiçbir şey yapmaz. |
+
+Nöbetçi, yönetici yetkisiyle çalışan bir zamanlanmış görevdir ("Cemal.cloud Win11 Debloat Guard"). Çalıştırdığı
+scriptin kopyası `Program Files` altında durur, oraya yalnızca yöneticiler yazabilir. Seçeneğin işaretini
+kaldırdığınızda ya da **Geri al**'a bastığınızda görev ve kopyası silinir.
 
 ## Ne değişir?
 
@@ -80,7 +104,9 @@ Bazı durumlarda ilgili adım bilerek atlanır:
 - **Çalıştırdığı:** yalnızca bu repodaki `Win11-Debloat.ps1` ve `Win11-Restore.ps1`. Uygulamanın içindeki kopyaları
   repodakilerle bayt bayt aynıdır (CI her derlemede kontrol eder).
 - **Yazdığı:** Windows ayarları (registry, servisler, zamanlanmış görevler) ve yedekler için
-  `%ProgramData%\CemalCloud\Win11Debloat\`.
+  `%ProgramData%\CemalCloud\Win11Debloat\`. Bu klasöre yalnızca yöneticiler yazabilir. **Geri al** ve Nöbetçi,
+  yönetici olmayan birinin bıraktığı dosyaları okumaz. Nöbetçi açıksa scriptin bir kopyası
+  `%ProgramFiles%\CemalCloud\Win11Debloat\` altına konur.
 - **Ağ:** debloat hiçbir yere bağlanmaz. Yalnızca **Geri al**, kaldırılmış OneDrive ve Edge'i yeniden kurmak için winget kullanır.
 - **Kimin ayarları:** bilgisayar genelindeki ayarlar herkese, kişisel ayarlar uygulamayı çalıştıran hesaba uygulanır.
 
@@ -91,9 +117,10 @@ ile aynı çekirdek):
 
 | Test | Sonuç (son çalıştırma) |
 |---|---|
-| Önizle → Uygula → tekrar Uygula → Geri al | 36 kontrol geçti. Uygulama 93 registry değerini değiştirdi, Geri al hepsini eski haline döndürdü. Önizleme hiçbir şeye dokunmadı. |
-| Uygulama, penceresiz | Gömülü scriptler repodakilerle aynı. 64-bit PowerShell kullanılıyor. Önizle, Uygula ve Geri al uygulama üzerinden sorunsuz. |
-| Uygulama, penceresiyle | Pencere açıldı, Edge'in işareti tıklamayla kaldırıldı, **Önizle**'ye basıldı. Script `-KeepEdge` ile çalıştı, sonuç pencerede göründü. |
+| Önizle → Uygula → Nöbetçi → tekrar Uygula → Geri al | 60 kontrol geçti. Uygulama 93 registry değerini değiştirdi, Geri al hepsini eski haline döndürdü. Önizleme hiçbir şeye dokunmadı. |
+| Windows güncellemesi taklidi | Telemetri politikası sıfırlandı, Copilot politikası silindi, bir görev yeniden açıldı. **Kontrol et** üçünü de buldu, **Yeniden uygula** düzeltti. Nöbetçi görevi kuruldu, yeni bir değişikliği kendi başına çalışıp düzeltti. |
+| Uygulama, penceresiz | Gömülü scriptler repodakilerle aynı. 64-bit PowerShell kullanılıyor. Önizle, Uygula, Kontrol et, Nöbetçi kur / kaldır ve Geri al uygulama üzerinden sorunsuz. |
+| Uygulama, penceresiyle | Pencere açıldı, Edge'in işareti tıklamayla kaldırıldı, **Önizle**'ye basıldı. Script `-KeepEdge` ile çalıştı, sonuç pencerede göründü. Bir politika geri değiştirildikten sonra açılan yeni pencere bunu kendiliğinden fark etti. |
 
 Dürüst not: sunucu sürümünde Store uygulamaları, Edge kaldırma ve OneDrive olmadığı için bu kısımlar testin dışında
 kalıyor. İlk kullanımda bir sanal makinede **Önizle** ile başlayın.
@@ -109,6 +136,9 @@ kalıyor. İlk kullanımda bir sanal makinede **Önizle** ile başlayın.
 | Üçüncü parti uygulamaları kaldır (işaretsiz) | `-KeepThirdParty` | Spotify, Netflix, Disney+ gibi uygulamalar kalır |
 | Yeni Outlook'u kaldır (işaretsiz) | `-KeepOutlookNew` | Yeni Outlook kalır |
 | Arayüz ayarları (işaretsiz) | `-SkipUiTweaks` | Dosya uzantısı, sağ tık menüsü gibi ayarlara dokunmaz |
+| Kontrol et | `-Check` | Neyin geri döndüğünü listeler, hiçbir şeyi değiştirmez (çıkış kodu 10: değişen var) |
+| Kontrol et → Evet | `-Reapply` | Yalnızca geri dönenleri son seferki seçeneklerle tekrar uygular |
+| Nöbetçi | `-InstallGuard`, `-RemoveGuard` | Oturum açınca kontrol edip düzelten görevi kurar / kaldırır |
 | | `-SkipRestorePoint` | Geri yükleme noktası oluşturulamasa da devam eder |
 | | `-Force` | Güvenlik kontrollerini atlar, dikkatli kullanın |
 
@@ -134,11 +164,17 @@ repository and shows their output live.
 
 - **Download:** `Win11-Debloat.exe` from [Releases](https://github.com/cemal-demirci/win11-debloat/releases/latest).
   Untick what you use, press **Önizle** (preview), then **Uygula** (apply) and restart. **Geri al** (restore) undoes everything.
-- **Safety:** restore point, registry export and an undo manifest before any change. OneDrive is kept when it is signed
+- **Guard:** every run saves what it put in place (`state.json`). **Kontrol et** (`-Check`) lists what Windows turned
+  back since then (registry values, re-enabled tasks, returned apps, reinstalled Edge / OneDrive) and `-Reapply` fixes
+  only those. The optional **Nöbetçi** (`-InstallGuard`) is a sign-in task that does this by itself and logs to
+  `guard.log`; restore removes it.
+- **Safety:** restore point, registry export and an undo manifest before any change. The backup folder is
+  admin-writable only, and restore / the guard ignore files not owned by an administrator. OneDrive is kept when it is signed
   in, Edge is kept when no other browser is installed. Store, winget, Terminal, work Teams, classic Outlook, Windows
   Search, Get Help and Intune sync are never touched.
 - **Scripts:** `Win11-Debloat.ps1 [-DryRun] [-KeepEdge] [-KeepOneDrive] [-KeepXbox] [-KeepThirdParty]`, `Win11-Restore.ps1`.
-- **Tested:** every commit runs a real preview / apply / repeat / restore round trip, the app headless and the app window
-  (UI clicks) on Windows Server 2025. Desktop-only parts (Store apps, Edge removal, OneDrive) are not covered there;
+- **Tested:** every commit runs a real preview / apply / guard / repeat / restore round trip (60 checks, including a
+  simulated feature update that the check finds and the guard task fixes by itself), the app headless and the app
+  window (UI clicks, drift noticed on start) on Windows Server 2025. Desktop-only parts (Store apps, Edge removal, OneDrive) are not covered there;
   start with a preview in a VM.
 - **License:** MIT.
