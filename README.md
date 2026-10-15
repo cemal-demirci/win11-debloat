@@ -20,7 +20,7 @@ Temizlemek kolaydır; zor olan geri dönmektir. Bu yüzden Win11 Debloat **yapt�
 Neyi uyguladığını da kaydettiği için, bir Windows güncellemesi sonrası **neyin geri döndüğünü** tek tek söyleyebilir
 ve yalnızca onları düzeltir. İsterseniz bunu her oturum açışta kendisi yapar.
 
-148 KB'lık tek bir uygulamadır, kurulum gerekmez. Arka planda bu repodaki PowerShell scriptlerini çalıştırır ve ne
+151 KB'lık tek bir uygulamadır, kurulum gerekmez. Arka planda bu repodaki PowerShell scriptlerini çalıştırır ve ne
 yaptığını canlı olarak gösterir.
 
 ## İndirme ve kullanım
@@ -203,7 +203,7 @@ kalıyor. CI makinesi yeniden başlatılamadığı için performans ayarlarını
 ## English
 
 **Windows 11 Debloat** removes ads, Copilot, Recall, preinstalled apps and telemetry, applies performance settings in
-one click, and records every change so it can be undone in one click. It is a 148 KB app (no install) that runs the PowerShell scripts in this
+one click, and records every change so it can be undone in one click. It is a 151 KB app (no install) that runs the PowerShell scripts in this
 repository and shows their output live.
 
 - **Download:** `Win11-Debloat.exe` from [Releases](https://github.com/cemal-demirci/win11-debloat/releases/latest).
