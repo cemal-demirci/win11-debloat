@@ -210,7 +210,8 @@ namespace CemalCloud.Win11Debloat
         protected override void OnLayout(LayoutEventArgs e)
         {
             base.OnLayout(e);
-            Switch.Location = new Point(Width - Switch.Width - 12, (Height - Switch.Height) / 2);
+            if (Switch == null) return;                 // setting Height in the constructor lays out early
+            Switch.Location = new Point(Width - Switch.Width - (int)(12 * DeviceDpi / 96f), (Height - Switch.Height) / 2);
         }
 
         protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
@@ -445,6 +446,7 @@ namespace CemalCloud.Win11Debloat
         protected override void OnLayout(LayoutEventArgs e)
         {
             base.OnLayout(e);
+            if (RunState == null || GuardState == null) return;
             int s8 = (int)(8 * DeviceDpi / 96f), right = Width - (int)(22 * DeviceDpi / 96f);
             int y = (Height - RunState.Height) / 2;
             GuardState.Location = new Point(right - GuardState.Width, y);
