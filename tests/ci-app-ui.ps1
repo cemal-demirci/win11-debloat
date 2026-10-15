@@ -6,6 +6,9 @@
     the dry run ran with -KeepEdge, the log shows the result and the buttons
     are enabled again.
 
+    Second window: after an apply and a simulated Windows update (a policy
+    reset), the window must notice the drift on its own when it opens.
+
     UI Automation is used to find the controls by their visible names; clicks
     and text reads go through the standard Win32 messages (BM_CLICK,
     BM_GETCHECK, WM_GETTEXT), which behave exactly like a mouse click.
@@ -80,20 +83,25 @@ function Check([bool]$Cond, [string]$Msg) {
 
 trap { Write-Diag "unexpected error: $($_.Exception.Message)"; exit 1 }
 
-# ---------------------------------------------------------------- start
-$script:proc = Start-Process -FilePath $Exe -PassThru
-$win = $null
-$deadline = (Get-Date).AddSeconds(60)
-while (-not $win -and (Get-Date) -lt $deadline) {
-    $script:proc.Refresh()
-    if ($script:proc.HasExited) { break }
-    $h = $script:proc.MainWindowHandle
-    if ($h -ne [IntPtr]::Zero) {
-        try { $win = $AE::FromHandle($h) } catch { $win = $null }
+function Open-App {
+    $script:proc = Start-Process -FilePath $Exe -PassThru
+    $w = $null
+    $deadline = (Get-Date).AddSeconds(60)
+    while (-not $w -and (Get-Date) -lt $deadline) {
+        $script:proc.Refresh()
+        if ($script:proc.HasExited) { break }
+        $h = $script:proc.MainWindowHandle
+        if ($h -ne [IntPtr]::Zero) {
+            try { $w = $AE::FromHandle($h) } catch { $w = $null }
+        }
+        if (-not $w) { Start-Sleep -Seconds 1 }
     }
-    if (-not $win) { Start-Sleep -Seconds 1 }
+    if (-not $w) { Write-Diag 'main window not reachable'; exit 1 }
+    return $w
 }
-if (-not $win) { Write-Diag 'main window not reachable'; exit 1 }
+
+# ---------------------------------------------------------------- start
+$win = Open-App
 $main = $script:proc.MainWindowHandle
 [void]$W::SetForegroundWindow($main)
 Write-Host "window: $($win.Current.Name)"
@@ -152,8 +160,36 @@ Check ($W::SendMessage($chkEdge, $BM_GETCHECK, [IntPtr]::Zero, [IntPtr]::Zero).T
 [void]$W::PostMessage($main, $WM_CLOSE, [IntPtr]::Zero, [IntPtr]::Zero)
 Check ($script:proc.WaitForExit(15000)) 'window closes'
 
+# ---------------------------------------------------------------- drift seen on start
+$work = Join-Path $env:RUNNER_TEMP 'app-ui'
+New-Item -ItemType Directory -Path $work -Force | Out-Null
+$p = Start-Process -FilePath $Exe -ArgumentList '--run', (Join-Path $work 'apply.log'), 'apply', '-SkipRestorePoint', '-KeepEdge', '-Force' -Wait -PassThru
+Check ($p.ExitCode -eq 0) 'apply through the app (headless) before the second window'
+Set-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection' -Name 'AllowTelemetry' -Value 3 -Type DWord
+
+$win = Open-App
+$main = $script:proc.MainWindowHandle
+$lblStatus = Find-Control $win 'Durum'
+$btnPreview = Find-Control $win '*nizle' '*BUTTON*'
+$status = ''
+$deadline = (Get-Date).AddSeconds(180)
+while ((Get-Date) -lt $deadline) {
+    $status = Get-WindowText $lblStatus
+    if ($status -match 'geri alm' -and $W::IsWindowEnabled($btnPreview)) { break }
+    Start-Sleep -Seconds 2
+}
+$log2 = Get-WindowText (Find-Control $win '*' '*EDIT*')
+Write-Host "status: $status"
+Write-Host $log2
+Check ($status -match '[0-9]+ de.*geri alm') "the window found the drift by itself on start (status: $status)"
+Check ($log2 -match 'AllowTelemetry: expected 0, found 3') 'the log names the changed policy'
+[void]$W::PostMessage($main, $WM_CLOSE, [IntPtr]::Zero, [IntPtr]::Zero)
+Check ($script:proc.WaitForExit(15000)) 'second window closes'
+$p = Start-Process -FilePath $Exe -ArgumentList '--run', (Join-Path $work 'restore.log'), 'restore' -Wait -PassThru
+Check ($p.ExitCode -eq 0) 'restore through the app'
+
 if ($failures -gt 0) { exit 1 }
 if ($env:GITHUB_ACTIONS) {
-    Write-Host '::notice title=App UI::Window opened with all options ticked, Edge unticked by a click, Preview pressed, the dry run ran with -KeepEdge, the log showed the summary, buttons came back, window closed.'
+    Write-Host '::notice title=App UI::Window opened with all options ticked, Edge unticked by a click, Preview pressed, the dry run ran with -KeepEdge, the log showed the summary, buttons came back, window closed. After an apply and a simulated policy reset, a new window reported the drift by itself on start.'
 }
 exit 0
