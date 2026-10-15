@@ -108,7 +108,7 @@
 .NOTES
     Project : Cemal.cloud win11-debloat  (https://github.com/cemal-demirci/win11-debloat)
     Tested  : Windows 11 23H2 / 24H2 / 25H2, Windows PowerShell 5.1
-    License : MIT
+    License : GPL-3.0-or-later
     HKCU changes apply to the account that runs the script. Run it from the
     user account you want to clean (that account must be an administrator).
 #>

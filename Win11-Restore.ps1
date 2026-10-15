@@ -33,7 +33,7 @@
 
 .NOTES
     Project : Cemal.cloud win11-debloat  (https://github.com/cemal-demirci/win11-debloat)
-    License : MIT
+    License : GPL-3.0-or-later
     Run as the same user that ran the debloat script (HKCU values).
 #>
 [CmdletBinding()]
