@@ -5,7 +5,7 @@
 [![Denetim](https://github.com/cemal-demirci/win11-debloat/actions/workflows/ci.yml/badge.svg)](https://github.com/cemal-demirci/win11-debloat/actions)
 ![Windows 11](https://img.shields.io/badge/Windows-11-0078D4)
 
-**Windows 11'i reklam panosu olmaktan çıkarın. Tek tıkla, istediğiniz an geri alınabilir şekilde.**
+**Windows 11'i reklam panosu olmaktan çıkarın ve hızlandırın. Tek tıkla, istediğiniz an geri alınabilir şekilde.**
 
 Sıfır kurulmuş bir Windows 11 açılır açılmaz Başlat menüsünde kurmadığınız uygulamalar, görev çubuğunda Copilot,
 kilit ekranında "öneriler", arka planda da Microsoft'a giden telemetri ile gelir. Bir kısmı Ayarlar'da hiç yoktur,
@@ -59,6 +59,7 @@ powershell -ExecutionPolicy Bypass -File .\Win11-Restore.ps1           # geri al
 | Başlat aramasında Bing | Ayarlar'da yok | ✅ |
 | Ön yüklü uygulamalar | Tek tek, sadece sizin hesabınızdan | ✅ Tüm kullanıcılardan ve yeni hesaplardan |
 | Telemetri | "Gerekli" seviyesine kadar | ✅ Politika ile en düşük seviye |
+| Saydamlık, animasyonlar, arka plan uygulamaları, güç planı | Ayarlar'da dağınık, bir kısmı hiç yok | ✅ Tek seçenek, hepsi geri alınabilir |
 | Güncellemeden sonra | Fark etmezsiniz, baştan başlarsınız | ✅ **Kontrol et** neyin geri döndüğünü söyler, **Nöbetçi** kendisi düzeltir |
 | Geri dönüş | Ne yaptığınızı hatırlamanız gerekir | ✅ Tek tık |
 
@@ -80,14 +81,41 @@ Nöbetçi, yönetici yetkisiyle çalışan bir zamanlanmış görevdir ("Cemal.c
 scriptin kopyası `Program Files` altında durur, oraya yalnızca yöneticiler yazabilir. Seçeneğin işaretini
 kaldırdığınızda ya da **Geri al**'a bastığınızda görev ve kopyası silinir.
 
+## Performans ayarları
+
+Güvenliği düşüren ve geri alınamayan hiçbir ayar yoktur. Hepsi registry ve güç planı üzerinden yapılır, **Geri al**
+hepsini eski haline getirir.
+
+| | Ne yapar |
+|---|---|
+| **Görüntü** | Saydamlık, pencere ve görev çubuğu animasyonları, solma ve gölge efektleri kapanır. Menüler beklemeden açılır. ClearType yazı yumuşatma ve küçük resimler kalır. |
+| **Arka plan** | Store uygulamaları kapalıyken arka planda çalışmaz. Açılışta başlayan programlar 10 saniye bekletilmez. Bilgisayar bakım için uykudan uyandırılmaz. Windows güncellemeleri sizin bağlantınızdan başka bilgisayarlara dağıtılmaz. |
+| **Sistem** | Ön plandaki uygulama işlemcide öncelik alır. Multimedya zamanlayıcısı arka plana daha az pay ayırır. NTFS her dosya okumasında "son erişim" zamanı yazmaz. İkon önbelleği büyür. Servisler daha az `svchost` sürecinde toplanır. |
+| **Güç (yalnızca masaüstü)** | "Cemal.cloud Performans" güç planı (Ultimate ya da High performance kopyası) açılır, güç kısma (power throttling) kapanır. Pil bulunan bilgisayarlarda (dizüstü, tablet, UPS) güç ayarlarına dokunulmaz. |
+
+Bilerek **dokunulmayanlar:** Defender, Windows Update, işlemci güvenlik korumaları (Spectre / Meltdown), sayfa dosyası,
+SysMain ve hazırda bekletme. Bunlar ya güvenliği düşürür ya da kazancı tartışmalıdır.
+
+Bilmeniz gerekenler:
+
+- Store'dan kurulan bazı uygulamalar (ör. WhatsApp) kapalıyken bildirim göndermeyebilir. Masaüstü uygulamaları
+  etkilenmez.
+- Xbox uygulamalarını tutarsanız servisler gruplanmaz; Game Bar'ın düzgün çalışması için ayrı kalmaları gerekir.
+- Ayarların çoğu yeniden başlattıktan sonra geçerli olur. **Kontrol et**, ilk çalıştırmadan önceki süreç, `svchost`,
+  çalışan servis sayısını ve bellek kullanımını bugünküyle yan yana gösterir. Fark kendi bilgisayarınızda ölçülür.
+- Oyunlarda FPS artışı beklemeyin. Kazanç, sistemin daha az iş yapmasından ve tepki süresinden gelir.
+
+İstemezseniz uygulamada **Performans ayarları**'nın işaretini kaldırın (PowerShell'de `-SkipPerformance`).
+
 ## Ne değişir?
 
 | | |
 |---|---|
 | **Kaldırılır** | Copilot, Microsoft 365 hub, Bing Haberler ve Hava Durumu, Get Started, Feedback Hub, Solitaire, To Do, Haritalar, Mail ve Takvim, Phone Link, Cortana, kişisel Teams, Clipchamp, Widgets, Xbox uygulamaları, yeni Outlook, OneDrive, Edge (Microsoft izin veriyorsa), Spotify ve Netflix gibi üretici ve tanıtım uygulamaları |
 | **Kapatılır** | Copilot ve Recall, Paint ve Not Defteri'ndeki yapay zekâ özellikleri, telemetri ve reklam kimliği, Başlat önerileri ve reklamları, Başlat aramasında Bing, kilit ekranı reklamları, sessiz uygulama kurulumları, Game DVR |
+| **Hızlandırılır** | Saydamlık ve animasyonlar, arka plan uygulamaları, açılış gecikmesi, işlemci önceliği, servis gruplama, masaüstünde güç planı (ayrıntılar yukarıda) |
 | **Ayarlanır** | Dosya uzantıları ve gizli dosyalar görünür, klasik sağ tık menüsü geri gelir, Explorer "Bu Bilgisayar" ile açılır |
-| **Dokunulmaz** | Microsoft Store, winget, Terminal, Fotoğraflar, Hesap Makinesi, Not Defteri, Paint, Ekran Alıntısı Aracı, iş Teams'i, klasik Outlook, WebView2, Windows Search, Get Help, Intune senkronizasyonu |
+| **Dokunulmaz** | Defender, Windows Update, işlemci güvenlik korumaları, Microsoft Store, winget, Terminal, Fotoğraflar, Hesap Makinesi, Not Defteri, Paint, Ekran Alıntısı Aracı, iş Teams'i, klasik Outlook, WebView2, Windows Search, Get Help, Intune senkronizasyonu |
 
 > **Dikkat:** Spotify, Netflix gibi üçüncü parti uygulamalar **tüm kullanıcılardan, verileriyle birlikte** kaldırılır.
 > Kullanıyorsanız uygulamada işaretini kaldırın (PowerShell'de `-KeepThirdParty`).
@@ -117,13 +145,14 @@ ile aynı çekirdek):
 
 | Test | Sonuç (son çalıştırma) |
 |---|---|
-| Önizle → Uygula → Nöbetçi → tekrar Uygula → Geri al | 60 kontrol geçti. Uygulama 93 registry değerini değiştirdi, Geri al hepsini eski haline döndürdü. Önizleme hiçbir şeye dokunmadı. |
+| Önizle → Uygula → Nöbetçi → tekrar Uygula → Geri al | 100 kontrol geçti. Uygulama 111 registry değerini değiştirdi ve performans güç planını açtı. Geri al hepsini, güç planı dahil, eski haline döndürdü. Önizleme hiçbir şeye dokunmadı. |
 | Windows güncellemesi taklidi | Telemetri politikası sıfırlandı, Copilot politikası silindi, bir görev yeniden açıldı. **Kontrol et** üçünü de buldu, **Yeniden uygula** düzeltti. Nöbetçi görevi kuruldu, yeni bir değişikliği kendi başına çalışıp düzeltti. |
 | Uygulama, penceresiz | Gömülü scriptler repodakilerle aynı. 64-bit PowerShell kullanılıyor. Önizle, Uygula, Kontrol et, Nöbetçi kur / kaldır ve Geri al uygulama üzerinden sorunsuz. |
 | Uygulama, penceresiyle | Pencere açıldı, Edge'in işareti tıklamayla kaldırıldı, **Önizle**'ye basıldı. Script `-KeepEdge` ile çalıştı, sonuç pencerede göründü. Bir politika geri değiştirildikten sonra açılan yeni pencere bunu kendiliğinden fark etti. |
 
 Dürüst not: sunucu sürümünde Store uygulamaları, Edge kaldırma ve OneDrive olmadığı için bu kısımlar testin dışında
-kalıyor. İlk kullanımda bir sanal makinede **Önizle** ile başlayın.
+kalıyor. CI makinesi yeniden başlatılamadığı için performans ayarlarının yeniden başlatma sonrası etkisi orada
+ölçülemiyor; testler ayarların doğru yazıldığını ve geri alındığını doğruluyor. İlk kullanımda bir sanal makinede **Önizle** ile başlayın.
 
 ## Seçenekler
 
@@ -136,6 +165,7 @@ kalıyor. İlk kullanımda bir sanal makinede **Önizle** ile başlayın.
 | Üçüncü parti uygulamaları kaldır (işaretsiz) | `-KeepThirdParty` | Spotify, Netflix, Disney+ gibi uygulamalar kalır |
 | Yeni Outlook'u kaldır (işaretsiz) | `-KeepOutlookNew` | Yeni Outlook kalır |
 | Arayüz ayarları (işaretsiz) | `-SkipUiTweaks` | Dosya uzantısı, sağ tık menüsü gibi ayarlara dokunmaz |
+| Performans ayarları (işaretsiz) | `-SkipPerformance` | Saydamlık, animasyon, arka plan, zamanlayıcı ve güç ayarlarına dokunmaz |
 | Kontrol et | `-Check` | Neyin geri döndüğünü listeler, hiçbir şeyi değiştirmez (çıkış kodu 10: değişen var) |
 | Kontrol et → Evet | `-Reapply` | Yalnızca geri dönenleri son seferki seçeneklerle tekrar uygular |
 | Nöbetçi | `-InstallGuard`, `-RemoveGuard` | Oturum açınca kontrol edip düzelten görevi kurar / kaldırır |
@@ -158,12 +188,18 @@ kalıyor. İlk kullanımda bir sanal makinede **Önizle** ile başlayın.
 
 ## English
 
-**Windows 11 Debloat** removes ads, Copilot, Recall, preinstalled apps and telemetry in one click, and records every
-change so it can be undone in one click. It is a 137 KB app (no install) that runs the PowerShell scripts in this
+**Windows 11 Debloat** removes ads, Copilot, Recall, preinstalled apps and telemetry, applies performance settings in
+one click, and records every change so it can be undone in one click. It is a 137 KB app (no install) that runs the PowerShell scripts in this
 repository and shows their output live.
 
 - **Download:** `Win11-Debloat.exe` from [Releases](https://github.com/cemal-demirci/win11-debloat/releases/latest).
   Untick what you use, press **Önizle** (preview), then **Uygula** (apply) and restart. **Geri al** (restore) undoes everything.
+- **Performance:** settings that are safe to undo: transparency and animations off (ClearType and thumbnails stay),
+  background Store apps off, no startup delay, foreground priority and MMCSS, NTFS last-access off, larger icon cache,
+  service host grouping (not with Xbox kept), no P2P update upload, and on desktops without a battery a high
+  performance power plan with power throttling off. Defender, Windows Update and CPU mitigations are never touched.
+  `-SkipPerformance` leaves all of it alone; **Kontrol et** shows processes, service hosts, running services and memory
+  before the first run vs now.
 - **Guard:** every run saves what it put in place (`state.json`). **Kontrol et** (`-Check`) lists what Windows turned
   back since then (registry values, re-enabled tasks, returned apps, reinstalled Edge / OneDrive) and `-Reapply` fixes
   only those. The optional **Nöbetçi** (`-InstallGuard`) is a sign-in task that does this by itself and logs to
@@ -173,7 +209,7 @@ repository and shows their output live.
   in, Edge is kept when no other browser is installed. Store, winget, Terminal, work Teams, classic Outlook, Windows
   Search, Get Help and Intune sync are never touched.
 - **Scripts:** `Win11-Debloat.ps1 [-DryRun] [-KeepEdge] [-KeepOneDrive] [-KeepXbox] [-KeepThirdParty]`, `Win11-Restore.ps1`.
-- **Tested:** every commit runs a real preview / apply / guard / repeat / restore round trip (60 checks, including a
+- **Tested:** every commit runs a real preview / apply / guard / repeat / restore round trip (100 checks, including a
   simulated feature update that the check finds and the guard task fixes by itself), the app headless and the app
   window (UI clicks, drift noticed on start) on Windows Server 2025. Desktop-only parts (Store apps, Edge removal, OneDrive) are not covered there;
   start with a preview in a VM.
